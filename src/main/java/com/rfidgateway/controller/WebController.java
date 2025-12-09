@@ -27,6 +27,9 @@ public class WebController {
     @Autowired
     private ReaderManager readerManager;
     
+    @Autowired
+    private com.rfidgateway.repository.ReaderGroupRepository groupRepository;
+    
     @GetMapping("/")
     public String index(Model model) {
         List<Reader> readers = readerRepository.findAll();
@@ -41,7 +44,9 @@ public class WebController {
     @GetMapping("/readers")
     public String readers(Model model) {
         List<Reader> readers = readerRepository.findAll();
+        List<com.rfidgateway.model.ReaderGroup> groups = groupRepository.findAll();
         model.addAttribute("readers", readers);
+        model.addAttribute("groups", groups);
         return "readers";
     }
     
@@ -267,6 +272,107 @@ public class WebController {
         List<Reader> readers = readerRepository.findAll();
         model.addAttribute("readers", readers);
         return "tags";
+    }
+    
+    // ========== GRUPOS DE LECTORES ==========
+    
+    @GetMapping("/groups/new")
+    public String newGroupForm(Model model) {
+        List<Reader> readers = readerRepository.findAll();
+        model.addAttribute("readers", readers);
+        model.addAttribute("group", new com.rfidgateway.model.ReaderGroup());
+        return "group-form";
+    }
+    
+    @PostMapping("/groups")
+    public String createGroup(@RequestParam String id,
+                             @RequestParam String name,
+                             @RequestParam(required = false) String description,
+                             @RequestParam(required = false) List<String> readerIds,
+                             @RequestParam(required = false, defaultValue = "true") Boolean enabled,
+                             RedirectAttributes redirectAttributes) {
+        try {
+            com.rfidgateway.model.ReaderGroup group = new com.rfidgateway.model.ReaderGroup();
+            group.setId(id);
+            group.setName(name);
+            group.setDescription(description);
+            group.setEnabled(enabled);
+            
+            // Agregar lectores al grupo
+            if (readerIds != null && !readerIds.isEmpty()) {
+                var readers = readerIds.stream()
+                    .map(readerRepository::findById)
+                    .filter(opt -> opt.isPresent())
+                    .map(opt -> opt.get())
+                    .collect(java.util.stream.Collectors.toList());
+                group.setReaders(readers);
+            }
+            
+            groupRepository.save(group);
+            redirectAttributes.addFlashAttribute("success", "Grupo creado exitosamente");
+        } catch (Exception e) {
+            log.error("Error al crear grupo: {}", e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error al crear grupo: " + e.getMessage());
+        }
+        return "redirect:/readers";
+    }
+    
+    @GetMapping("/groups/{id}/edit")
+    public String editGroupForm(@PathVariable String id, Model model) {
+        com.rfidgateway.model.ReaderGroup group = groupRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Grupo no encontrado"));
+        List<Reader> readers = readerRepository.findAll();
+        model.addAttribute("group", group);
+        model.addAttribute("readers", readers);
+        return "group-form";
+    }
+    
+    @PostMapping("/groups/{id}")
+    public String updateGroup(@PathVariable String id,
+                             @RequestParam String name,
+                             @RequestParam(required = false) String description,
+                             @RequestParam(required = false) List<String> readerIds,
+                             @RequestParam(required = false, defaultValue = "true") Boolean enabled,
+                             RedirectAttributes redirectAttributes) {
+        try {
+            com.rfidgateway.model.ReaderGroup group = groupRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Grupo no encontrado"));
+            
+            group.setName(name);
+            group.setDescription(description);
+            group.setEnabled(enabled);
+            
+            // Actualizar lectores del grupo
+            if (readerIds != null) {
+                var readers = readerIds.stream()
+                    .map(readerRepository::findById)
+                    .filter(opt -> opt.isPresent())
+                    .map(opt -> opt.get())
+                    .collect(java.util.stream.Collectors.toList());
+                group.setReaders(readers);
+            } else {
+                group.setReaders(new java.util.ArrayList<>());
+            }
+            
+            groupRepository.save(group);
+            redirectAttributes.addFlashAttribute("success", "Grupo actualizado exitosamente");
+        } catch (Exception e) {
+            log.error("Error al actualizar grupo: {}", e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error al actualizar grupo: " + e.getMessage());
+        }
+        return "redirect:/readers";
+    }
+    
+    @PostMapping("/groups/{id}/delete")
+    public String deleteGroup(@PathVariable String id, RedirectAttributes redirectAttributes) {
+        try {
+            groupRepository.deleteById(id);
+            redirectAttributes.addFlashAttribute("success", "Grupo eliminado exitosamente");
+        } catch (Exception e) {
+            log.error("Error al eliminar grupo: {}", e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error al eliminar grupo: " + e.getMessage());
+        }
+        return "redirect:/readers";
     }
 }
 

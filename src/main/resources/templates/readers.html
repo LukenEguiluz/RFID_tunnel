@@ -229,6 +229,7 @@
             <a href="/" class="btn">← Volver</a>
             <a href="/tags" class="btn">🏷️ Ver Tags</a>
             <a href="/readers/new" class="btn btn-success">➕ Agregar Lector</a>
+            <a href="/groups/new" class="btn" style="background: #4299e1;">👥 Crear Grupo</a>
             <a href="/api-docs" class="btn">📚 Ver APIs</a>
         </div>
         
@@ -313,6 +314,60 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+        
+        <div style="margin-top: 40px;">
+            <h2 style="color: #333; margin-bottom: 20px;">👥 Grupos de Lectores</h2>
+            
+            <div th:if="${groups != null and !groups.empty}">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Descripción</th>
+                            <th>Lectores</th>
+                            <th>Conectados</th>
+                            <th>Habilitado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="group : ${groups}">
+                            <td th:text="${group.id}"></td>
+                            <td th:text="${group.name}"></td>
+                            <td th:text="${group.description != null ? group.description : '-'}"></td>
+                            <td>
+                                <span th:text="${group.readers != null ? group.readers.size() : 0}"></span>
+                            </td>
+                            <td>
+                                <span th:text="${group.connectedReaders != null ? group.connectedReaders.size() : 0}"></span>
+                            </td>
+                            <td>
+                                <span th:if="${group.enabled}" style="color: #48bb78;">✓</span>
+                                <span th:unless="${group.enabled}" style="color: #f56565;">✗</span>
+                            </td>
+                            <td>
+                                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                    <a th:href="@{/groups/{id}/edit(id=${group.id})}" 
+                                       class="btn btn-small">✏️ Editar</a>
+                                    <form th:action="@{/groups/{id}/delete(id=${group.id})}" 
+                                          method="post" style="display: inline;"
+                                          onsubmit="return confirm('¿Estás seguro de eliminar este grupo?');">
+                                        <button type="submit" class="btn btn-small btn-danger">🗑️ Eliminar</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div th:if="${groups == null or groups.empty}" class="empty-state">
+                <h3>No hay grupos configurados</h3>
+                <p>Los grupos permiten controlar múltiples lectores simultáneamente</p>
+                <a href="/groups/new" class="btn btn-success" style="margin-top: 20px;">➕ Crear Primer Grupo</a>
+            </div>
         </div>
         
         <div th:if="${readers == null or readers.empty}" class="empty-state">
