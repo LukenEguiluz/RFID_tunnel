@@ -110,6 +110,66 @@ public class ReaderController {
         readerManager.resetAntennas(id);
         return ResponseEntity.ok(Map.of("message", "Antennas configuration reset", "readerId", id));
     }
+    
+    /**
+     * Configura lectura intermitente para un lector
+     * POST /api/readers/{id}/intermittent
+     * Body: {
+     *   "enabled": true,
+     *   "readDurationSeconds": 5,
+     *   "pauseDurationSeconds": 5
+     * }
+     */
+    @PostMapping("/{id}/intermittent")
+    public ResponseEntity<Map<String, Object>> configureIntermittentReading(
+            @PathVariable String id,
+            @RequestBody Map<String, Object> config) {
+        Reader reader = readerRepository.findById(id).orElse(null);
+        if (reader == null) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        // Actualizar configuración
+        if (config.containsKey("enabled")) {
+            reader.setIntermittentEnabled(Boolean.valueOf(config.get("enabled").toString()));
+        }
+        if (config.containsKey("readDurationSeconds")) {
+            Integer readDuration = Integer.valueOf(config.get("readDurationSeconds").toString());
+            if (readDuration < 1) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "readDurationSeconds debe ser mayor a 0"));
+            }
+            reader.setReadDurationSeconds(readDuration);
+        }
+        if (config.containsKey("pauseDurationSeconds")) {
+            Integer pauseDuration = Integer.valueOf(config.get("pauseDurationSeconds").toString());
+            if (pauseDuration < 1) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "pauseDurationSeconds debe ser mayor a 0"));
+            }
+            reader.setPauseDurationSeconds(pauseDuration);
+        }
+        
+        readerRepository.save(reader);
+        
+        // Si el lector está conectado y leyendo, reiniciar con nueva configuración
+        if (reader.getIsConnected() != null && reader.getIsConnected() 
+            && reader.getIsReading() != null && reader.getIsReading()) {
+            // Detener lectura actual (esto detendrá el ciclo intermitente si estaba activo)
+            readerManager.stopReader(id);
+            
+            // Reiniciar con nueva configuración
+            readerManager.startReader(id);
+        }
+        
+        return ResponseEntity.ok(Map.of(
+            "message", "Configuración de lectura intermitente actualizada. Reinicia el lector para aplicar cambios.",
+            "readerId", id,
+            "intermittentEnabled", reader.getIntermittentEnabled() != null ? reader.getIntermittentEnabled() : false,
+            "readDurationSeconds", reader.getReadDurationSeconds() != null ? reader.getReadDurationSeconds() : 5,
+            "pauseDurationSeconds", reader.getPauseDurationSeconds() != null ? reader.getPauseDurationSeconds() : 5
+        ));
+    }
 }
 
 
