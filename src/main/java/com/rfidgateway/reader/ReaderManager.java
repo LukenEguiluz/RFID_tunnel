@@ -156,42 +156,15 @@ public class ReaderManager {
             
             readers.put(readerId, impinjReader);
             
-            // Actualizar estado en BD
+            // Actualizar estado en BD - CONECTADO pero NO LEYENDO
             readerConfig.setIsConnected(true);
-            readerConfig.setIsReading(false); // Inicialmente no está leyendo
+            readerConfig.setIsReading(false); // NO iniciar lectura automáticamente
             readerConfig.setLastSeen(java.time.LocalDateTime.now());
             readerRepository.save(readerConfig);
             
-            // Iniciar lectura según el modo configurado
-            if (Boolean.TRUE.equals(readerConfig.getIntermittentEnabled())) {
-                log.info("Lector {} configurado en modo intermitente. Iniciando ciclo...", readerConfig.getName());
-                startIntermittentReading(readerId, readerConfig);
-            } else {
-                // Modo continuo (comportamiento original)
-                log.info("Iniciando lectura continua en lector {}...", readerId);
-                
-                // Verificar estado antes de iniciar
-                Status status = impinjReader.queryStatus();
-                log.info("Estado del lector {} antes de iniciar: Singulating={}, Connected={}", 
-                        readerId, status.getIsSingulating(), status.getIsConnected());
-                
-                impinjReader.start();
-                
-                // Verificar estado después de iniciar
-                try {
-                    Thread.sleep(500);
-                    Status statusAfter = impinjReader.queryStatus();
-                    log.info("Estado del lector {} después de iniciar: Singulating={}, Connected={}", 
-                            readerId, statusAfter.getIsSingulating(), statusAfter.getIsConnected());
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                }
-                
-                readerConfig.setIsReading(true);
-                readerRepository.save(readerConfig);
-            }
-            
-            log.info("Lector {} conectado exitosamente", readerConfig.getName());
+            // NO iniciar lectura automáticamente
+            // La lectura solo se inicia cuando se envía comando explícito (sesión o startReader)
+            log.info("Lector {} conectado exitosamente (lectura inactiva - esperando comando)", readerConfig.getName());
             
             // Notificar reconexión vía WebSocket
             webSocketEventService.notifyReaderReconnected(readerId, readerConfig.getName());
@@ -361,11 +334,14 @@ public class ReaderManager {
                 reader.stop();
                 readerConfig.setIsReading(false);
                 readerRepository.save(readerConfig);
-                log.info("Lector {} detenido (modo continuo)", readerId);
+                log.info("Lector {} detenido. Lector ahora inactivo.", readerId);
             } catch (OctaneSdkException e) {
                 log.error("Error al detener lector {}: {}", readerId, e.getMessage());
             }
         }
+        
+        // Limpiar sesión activa si existe
+        readerToActiveSession.remove(readerId);
     }
 
     private void scheduleReconnect(String readerId, Reader readerConfig) {
@@ -673,19 +649,20 @@ public class ReaderManager {
         ImpinjReader reader = readers.get(readerId);
         if (reader != null && reader.isConnected()) {
             try {
+                // Detener lectura
                 reader.stop();
                 
                 // Limpiar sesión activa
                 readerToActiveSession.remove(readerId);
                 
-                // Actualizar estado
+                // Actualizar estado - LECTOR INACTIVO
                 Reader readerConfig = readerRepository.findById(readerId).orElse(null);
                 if (readerConfig != null) {
                     readerConfig.setIsReading(false);
                     readerRepository.save(readerConfig);
                 }
                 
-                log.info("Lectura de sesión detenida para lector {}", readerId);
+                log.info("Lectura de sesión detenida para lector {}. Lector ahora inactivo.", readerId);
             } catch (Exception e) {
                 log.error("Error al detener lectura de sesión para lector {}: {}", readerId, e.getMessage());
             }
