@@ -5,7 +5,10 @@ import com.impinj.octane.Tag;
 import com.impinj.octane.TagReport;
 import com.impinj.octane.TagReportListener;
 import com.rfidgateway.tag.TagEventService;
+import com.rfidgateway.session.SessionService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
@@ -14,10 +17,15 @@ public class GatewayTagReportListener implements TagReportListener {
     
     private final String readerId;
     private final TagEventService tagEventService;
+    private SessionService sessionService;
     
     public GatewayTagReportListener(String readerId, TagEventService tagEventService) {
         this.readerId = readerId;
         this.tagEventService = tagEventService;
+    }
+    
+    public void setSessionService(SessionService sessionService) {
+        this.sessionService = sessionService;
     }
     
     @Override
@@ -49,7 +57,7 @@ public class GatewayTagReportListener implements TagReportListener {
                 log.info("TAG DETECTADO - Lector: {}, EPC: {}, Antena: {}, RSSI: {} dBm", 
                         readerId, epc, antennaPort, rssi);
                 
-                // Procesar evento de tag
+                // Procesar evento de tag (siempre guardar en BD)
                 tagEventService.processTagEvent(
                     readerId,
                     epc,
@@ -57,6 +65,12 @@ public class GatewayTagReportListener implements TagReportListener {
                     rssi,
                     phase
                 );
+                
+                // Si hay sesión activa, también agregar a la sesión
+                if (sessionService != null && sessionService.hasActiveSession(readerId)) {
+                    sessionService.addEpcToSession(readerId, epc);
+                    log.debug("EPC {} agregado a sesión activa del lector {}", epc, readerId);
+                }
                 
             } catch (Exception e) {
                 log.error("Error al procesar tag del lector {}: {}", readerId, e.getMessage(), e);

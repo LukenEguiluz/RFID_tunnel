@@ -7,6 +7,7 @@ import com.rfidgateway.repository.ReaderRepository;
 import com.rfidgateway.repository.AntennaRepository;
 import com.rfidgateway.tag.TagEventService;
 import com.rfidgateway.tag.WebSocketEventService;
+import com.rfidgateway.session.SessionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -35,8 +36,12 @@ public class ReaderManager {
     
     @Autowired
     private WebSocketEventService webSocketEventService;
+    
+    @Autowired
+    private SessionService sessionService;
 
     private final Map<String, ImpinjReader> readers = new ConcurrentHashMap<>();
+    private final Map<String, String> readerToActiveSession = new ConcurrentHashMap<>();
     private final Map<String, ReaderInfo> readerInfos = new ConcurrentHashMap<>();
     private final ScheduledExecutorService reconnectExecutor = Executors.newScheduledThreadPool(5);
     private final Map<String, ScheduledFuture<?>> intermittentTasks = new ConcurrentHashMap<>();
@@ -128,7 +133,9 @@ public class ReaderManager {
             // Configurar listeners DESPUÉS de configurar settings pero ANTES de applySettings
             // (Este es el orden correcto según el ejemplo que funciona)
             log.info("Configurando listeners para lector {}...", readerId);
-            impinjReader.setTagReportListener(new GatewayTagReportListener(readerId, tagEventService));
+            GatewayTagReportListener tagListener = new GatewayTagReportListener(readerId, tagEventService);
+            tagListener.setSessionService(sessionService);
+            impinjReader.setTagReportListener(tagListener);
             impinjReader.setConnectionLostListener(new GatewayConnectionLostListener(readerId, this));
             log.info("Listeners configurados correctamente");
             
@@ -618,6 +625,69 @@ public class ReaderManager {
                 } catch (Exception e) {
                     log.error("Error al detener lector {}: {}", readerId, e.getMessage());
                 }
+            }
+        }
+    }
+
+    /**
+     * Inicia lectura para una sesión activa
+     */
+    public void startSessionReading(String readerId, String sessionId) {
+        ImpinjReader reader = readers.get(readerId);
+        if (reader == null || !reader.isConnected()) {
+            throw new IllegalStateException("Lector no está conectado: " + readerId);
+        }
+        
+        // Registrar sesión activa
+        readerToActiveSession.put(readerId, sessionId);
+        
+        try {
+            // Detener cualquier lectura previa
+            if (reader.isConnected()) {
+                reader.stop();
+                Thread.sleep(500);
+            }
+            
+            // Iniciar lectura
+            reader.start();
+            
+            // Actualizar estado
+            Reader readerConfig = readerRepository.findById(readerId).orElse(null);
+            if (readerConfig != null) {
+                readerConfig.setIsReading(true);
+                readerRepository.save(readerConfig);
+            }
+            
+            log.info("Lectura de sesión {} iniciada para lector {}", sessionId, readerId);
+        } catch (Exception e) {
+            readerToActiveSession.remove(readerId);
+            log.error("Error al iniciar lectura de sesión para lector {}: {}", readerId, e.getMessage());
+            throw new RuntimeException("Error al iniciar lectura de sesión", e);
+        }
+    }
+
+    /**
+     * Detiene lectura de sesión
+     */
+    public void stopSessionReading(String readerId) {
+        ImpinjReader reader = readers.get(readerId);
+        if (reader != null && reader.isConnected()) {
+            try {
+                reader.stop();
+                
+                // Limpiar sesión activa
+                readerToActiveSession.remove(readerId);
+                
+                // Actualizar estado
+                Reader readerConfig = readerRepository.findById(readerId).orElse(null);
+                if (readerConfig != null) {
+                    readerConfig.setIsReading(false);
+                    readerRepository.save(readerConfig);
+                }
+                
+                log.info("Lectura de sesión detenida para lector {}", readerId);
+            } catch (Exception e) {
+                log.error("Error al detener lectura de sesión para lector {}: {}", readerId, e.getMessage());
             }
         }
     }
