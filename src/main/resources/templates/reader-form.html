@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agregar Lector - doHealth RFID Gateway</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="checkbox"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #dc2626;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        .btn:hover {
+            background: #b91c1c;
+        }
+        
+        .btn-secondary {
+            background: #718096;
+        }
+        
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>➕ Agregar Nuevo Lector</h1>
+            
+            <form th:action="@{/readers}" method="post" th:object="${reader}">
+                <div class="form-group">
+                    <label for="id">ID del Lector *</label>
+                    <input type="text" id="id" th:field="*{id}" required 
+                           placeholder="ej: reader-1">
+                    <div class="help-text">Identificador único (sin espacios)</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="name">Nombre del Lector *</label>
+                    <input type="text" id="name" th:field="*{name}" required 
+                           placeholder="ej: Lector Entrada Principal">
+                    <div class="help-text">Nombre descriptivo para identificar el lector</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="hostname">Hostname o IP *</label>
+                    <input type="text" id="hostname" th:field="*{hostname}" required 
+                           placeholder="ej: 192.168.1.100">
+                    <div class="help-text">Dirección IP o hostname del lector R220</div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enabled" th:field="*{enabled}" checked>
+                        <label for="enabled">Habilitado (conectar automáticamente)</label>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <button type="submit" class="btn">💾 Guardar</button>
+                    <a href="/readers" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+
+
+

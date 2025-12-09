@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: rfid-gateway
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rfidgateway
+    username: rfiduser
+    password: ${DB_PASSWORD:changeme}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+
+server:
+  port: 8080
+
+logging:
+  level:
+    root: INFO
+    com.rfidgateway: DEBUG
+    com.rfidgateway.reader: INFO
+    com.impinj: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %-5level [%logger{36}] - %msg%n"
+
+gateway:
+  auto-reconnect:
+    enabled: true
+    interval-seconds: 30
+    max-retries: -1  # -1 = infinito
+
+

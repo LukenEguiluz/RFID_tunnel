@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar Lectores - doHealth RFID Gateway</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #dc2626;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        
+        .btn:hover {
+            background: #b91c1c;
+        }
+        
+        .btn-success {
+            background: #48bb78;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+        }
+        
+        .btn-warning {
+            background: #ed8936;
+        }
+        
+        .btn-small {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        th {
+            background: #dc2626;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        tr:hover {
+            background: #f7fafc;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-connected {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .status-disconnected {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .status-reading {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .alert {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+        
+        .alert-error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+        }
+        
+        .api-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 400px;
+        }
+        
+        .api-result-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+        
+        .api-result-error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+        
+        .api-result-info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        pre {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- Modal para mostrar resultados de APIs -->
+    <div id="apiModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">Resultado de API</h2>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Gestionar Lectores</h1>
+            <a href="/" class="btn">← Volver</a>
+            <a href="/tags" class="btn">🏷️ Ver Tags</a>
+            <a href="/readers/new" class="btn btn-success">➕ Agregar Lector</a>
+            <a href="/api-docs" class="btn">📚 Ver APIs</a>
+        </div>
+        
+        <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
+        <div th:if="${error}" class="alert alert-error" th:text="${error}"></div>
+        
+        <div th:if="${readers != null and !readers.empty}">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Hostname/IP</th>
+                        <th>Estado</th>
+                        <th>Habilitado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="reader : ${readers}">
+                        <td th:text="${reader.id}"></td>
+                        <td th:text="${reader.name}"></td>
+                        <td th:text="${reader.hostname}"></td>
+                        <td>
+                            <span th:if="${reader.isConnected != null and reader.isConnected}" 
+                                  class="status status-connected">Conectado</span>
+                            <span th:unless="${reader.isConnected != null and reader.isConnected}" 
+                                  class="status status-disconnected">Desconectado</span>
+                            <span th:if="${reader.isReading != null and reader.isReading}" 
+                                  class="status status-reading">Leyendo</span>
+                        </td>
+                        <td>
+                            <span th:if="${reader.enabled}" style="color: #48bb78;">✓</span>
+                            <span th:unless="${reader.enabled}" style="color: #f56565;">✗</span>
+                        </td>
+                        <td>
+                            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                                <a th:href="@{/readers/{id}/edit(id=${reader.id})}" 
+                                   class="btn btn-small">✏️ Editar</a>
+                                <form th:action="@{/readers/{id}/connect(id=${reader.id})}" 
+                                      method="post" style="display: inline;">
+                                    <button type="submit" class="btn btn-small btn-success">🔌 Conectar</button>
+                                </form>
+                                <form th:action="@{/readers/{id}/disconnect(id=${reader.id})}" 
+                                      method="post" style="display: inline;">
+                                    <button type="submit" class="btn btn-small btn-warning">🔌 Desconectar</button>
+                                </form>
+                                <button type="button" 
+                                        class="btn btn-small btn-api-action" 
+                                        style="background: #4299e1;"
+                                        th:data-reader-id="${reader.id}"
+                                        data-action="reset">
+                                    🔄 Reset
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-small btn-api-action" 
+                                        style="background: #9f7aea;"
+                                        th:data-reader-id="${reader.id}"
+                                        data-action="reboot">
+                                    🔁 Reboot
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-small btn-api-action" 
+                                        style="background: #38b2ac;"
+                                        th:data-reader-id="${reader.id}"
+                                        data-action="resetAntennas">
+                                    📡 Reset Antenas
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-small btn-status-action" 
+                                        style="background: #718096;"
+                                        th:data-reader-id="${reader.id}">
+                                    📊 Status
+                                </button>
+                                <form th:action="@{/readers/{id}/delete(id=${reader.id})}" 
+                                      method="post" style="display: inline;"
+                                      onsubmit="return confirm('¿Estás seguro de eliminar este lector?');">
+                                    <button type="submit" class="btn btn-small btn-danger">🗑️ Eliminar</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div th:if="${readers == null or readers.empty}" class="empty-state">
+            <h3>No hay lectores configurados</h3>
+            <p>Agrega tu primer lector para comenzar</p>
+            <a href="/readers/new" class="btn btn-success" style="margin-top: 20px;">➕ Agregar Lector</a>
+        </div>
+    </div>
+    
+    <script>
+        // Configurar event listeners para los botones
+        document.addEventListener('DOMContentLoaded', function() {
+            // Botones de API (reset, reboot, resetAntennas)
+            document.querySelectorAll('.btn-api-action').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    const readerId = this.getAttribute('data-reader-id');
+                    const action = this.getAttribute('data-action');
+                    callApi(readerId, action);
+                });
+            });
+            
+            // Botones de status
+            document.querySelectorAll('.btn-status-action').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    const readerId = this.getAttribute('data-reader-id');
+                    getStatus(readerId);
+                });
+            });
+        });
+        
+        function callApi(readerId, action) {
+            const endpoints = {
+                'reset': '/api/readers/' + readerId + '/reset',
+                'reboot': '/api/readers/' + readerId + '/reboot',
+                'resetAntennas': '/api/readers/' + readerId + '/antennas/reset'
+            };
+            
+            const actionNames = {
+                'reset': 'Reset de Conexión',
+                'reboot': 'Reboot Completo',
+                'resetAntennas': 'Reset de Antenas'
+            };
+            
+            const endpoint = endpoints[action];
+            if (!endpoint) {
+                showModal('Error', 'Acción no válida');
+                return;
+            }
+            
+            showModal(actionNames[action], 'Ejecutando...');
+            
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                showModal(actionNames[action] + ' - Éxito', JSON.stringify(data, null, 2));
+            })
+            .catch(error => {
+                showModal(actionNames[action] + ' - Error', 'Error: ' + error.message);
+            });
+        }
+        
+        function getStatus(readerId) {
+            showModal('Estado del Lector', 'Cargando...');
+            
+            fetch('/api/readers/' + readerId + '/status')
+            .then(response => response.json())
+            .then(data => {
+                showModal('Estado del Lector', JSON.stringify(data, null, 2));
+            })
+            .catch(error => {
+                showModal('Error', 'Error al obtener estado: ' + error.message);
+            });
+        }
+        
+        function showModal(title, content) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = '<pre>' + content + '</pre>';
+            document.getElementById('apiModal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('apiModal').style.display = 'none';
+        }
+        
+        // Cerrar modal al hacer clic fuera
+        window.onclick = function(event) {
+            const modal = document.getElementById('apiModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agregar Antena - doHealth RFID Gateway</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="checkbox"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #dc2626;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        .btn:hover {
+            background: #b91c1c;
+        }
+        
+        .btn-secondary {
+            background: #718096;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📡 Agregar Antena</h1>
+            <p style="color: #666; margin-bottom: 20px;">
+                Lector: <strong th:text="${reader.name}"></strong>
+            </p>
+            
+            <form th:action="@{/readers/{readerId}/antennas(readerId=${reader.id})}" 
+                  method="post" th:object="${antenna}">
+                <input type="hidden" th:field="*{readerId}">
+                
+                <div class="form-group">
+                    <label for="name">Nombre de la Antena</label>
+                    <input type="text" id="name" th:field="*{name}" 
+                           placeholder="ej: Antena Principal">
+                    <div class="help-text">Opcional: nombre descriptivo</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="portNumber">Número de Puerto *</label>
+                    <input type="number" id="portNumber" th:field="*{portNumber}" 
+                           min="1" max="4" required>
+                    <div class="help-text">Puerto de la antena (1-4, típicamente 1 o 2 para R220)</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="txPowerDbm">Potencia de Transmisión (dBm)</label>
+                    <input type="number" id="txPowerDbm" th:field="*{txPowerDbm}" 
+                           step="0.1" min="0" max="30" placeholder="ej: 20.0">
+                    <div class="help-text">Opcional: dejar vacío para usar máxima potencia</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="rxSensitivityDbm">Sensibilidad de Recepción (dBm)</label>
+                    <input type="number" id="rxSensitivityDbm" th:field="*{rxSensitivityDbm}" 
+                           step="0.1" max="0" placeholder="ej: -70.0">
+                    <div class="help-text">Opcional: dejar vacío para usar máxima sensibilidad</div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enabled" th:field="*{enabled}" checked>
+                        <label for="enabled">Habilitada</label>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <button type="submit" class="btn">💾 Guardar</button>
+                    <a th:href="@{/readers/{id}/edit(id=${reader.id})}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+
+
+
