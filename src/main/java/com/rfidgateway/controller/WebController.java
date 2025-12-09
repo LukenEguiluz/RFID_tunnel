@@ -56,6 +56,18 @@ public class WebController {
         try {
             reader.setIsConnected(false);
             reader.setIsReading(false);
+            
+            // Establecer valores por defecto si no se proporcionaron
+            if (reader.getIntermittentEnabled() == null) {
+                reader.setIntermittentEnabled(false);
+            }
+            if (reader.getReadDurationSeconds() == null) {
+                reader.setReadDurationSeconds(5);
+            }
+            if (reader.getPauseDurationSeconds() == null) {
+                reader.setPauseDurationSeconds(5);
+            }
+            
             readerRepository.save(reader);
             redirectAttributes.addFlashAttribute("success", "Lector creado exitosamente");
             
@@ -91,8 +103,17 @@ public class WebController {
             existing.setHostname(reader.getHostname());
             existing.setEnabled(reader.getEnabled());
             
+            // Actualizar configuración de lectura intermitente
+            existing.setIntermittentEnabled(reader.getIntermittentEnabled());
+            if (reader.getReadDurationSeconds() != null) {
+                existing.setReadDurationSeconds(reader.getReadDurationSeconds());
+            }
+            if (reader.getPauseDurationSeconds() != null) {
+                existing.setPauseDurationSeconds(reader.getPauseDurationSeconds());
+            }
+            
             readerRepository.save(existing);
-            redirectAttributes.addFlashAttribute("success", "Lector actualizado exitosamente");
+            redirectAttributes.addFlashAttribute("success", "Lector actualizado exitosamente. Reinicia el lector para aplicar cambios en el modo de lectura.");
             
             // Reconectar si está habilitado y no está conectado
             if (existing.getEnabled() && (existing.getIsConnected() == null || !existing.getIsConnected())) {
@@ -104,7 +125,7 @@ public class WebController {
             log.error("Error al actualizar lector: {}", e.getMessage());
             redirectAttributes.addFlashAttribute("error", "Error al actualizar lector: " + e.getMessage());
         }
-        return "redirect:/readers";
+        return "redirect:/readers/" + id + "/edit";
     }
     
     @PostMapping("/readers/{id}/delete")
@@ -188,6 +209,50 @@ public class WebController {
             redirectAttributes.addFlashAttribute("error", "Error al desconectar: " + e.getMessage());
         }
         return "redirect:/readers";
+    }
+    
+    @PostMapping("/readers/{id}/start")
+    public String startReader(@PathVariable String id, RedirectAttributes redirectAttributes) {
+        try {
+            Reader reader = readerRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Lector no encontrado"));
+            
+            if (!reader.getEnabled()) {
+                redirectAttributes.addFlashAttribute("error", "El lector debe estar habilitado para iniciar lectura");
+                return "redirect:/readers/" + id + "/edit";
+            }
+            
+            readerManager.startReader(id);
+            redirectAttributes.addFlashAttribute("success", "Lectura iniciada");
+        } catch (Exception e) {
+            log.error("Error al iniciar lectura: {}", e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error al iniciar lectura: " + e.getMessage());
+        }
+        return "redirect:/readers/" + id + "/edit";
+    }
+    
+    @PostMapping("/readers/{id}/stop")
+    public String stopReader(@PathVariable String id, RedirectAttributes redirectAttributes) {
+        try {
+            readerManager.stopReader(id);
+            redirectAttributes.addFlashAttribute("success", "Lectura detenida");
+        } catch (Exception e) {
+            log.error("Error al detener lectura: {}", e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error al detener lectura: " + e.getMessage());
+        }
+        return "redirect:/readers/" + id + "/edit";
+    }
+    
+    @PostMapping("/readers/{id}/reset")
+    public String resetReader(@PathVariable String id, RedirectAttributes redirectAttributes) {
+        try {
+            readerManager.resetReader(id);
+            redirectAttributes.addFlashAttribute("success", "Lector reiniciado. Reconectando...");
+        } catch (Exception e) {
+            log.error("Error al reiniciar lector: {}", e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Error al reiniciar lector: " + e.getMessage());
+        }
+        return "redirect:/readers/" + id + "/edit";
     }
     
     @GetMapping("/api-docs")

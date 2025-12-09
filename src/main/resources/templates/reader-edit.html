@@ -134,7 +134,39 @@
             background: #fed7d7;
             color: #742a2a;
         }
+        
+        input[type="number"] {
+            width: 100%;
+            max-width: 200px;
+        }
+        
+        hr {
+            margin: 30px 0;
+            border: none;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
+    <script>
+        function toggleIntermittentConfig() {
+            const checkbox = document.getElementById('intermittentEnabled');
+            const configDiv = document.getElementById('intermittentConfig');
+            if (checkbox.checked) {
+                configDiv.style.display = 'block';
+            } else {
+                configDiv.style.display = 'none';
+            }
+        }
+        
+        // Inicializar estado al cargar la página
+        window.onload = function() {
+            toggleIntermittentConfig();
+        };
+    </script>
 </head>
 <body>
     <div class="container">
@@ -168,11 +200,93 @@
                     </div>
                 </div>
                 
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;">
+                
+                <h3 style="margin-bottom: 15px; color: #333;">⚙️ Modo de Lectura</h3>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="intermittentEnabled" 
+                               th:field="*{intermittentEnabled}"
+                               onchange="toggleIntermittentConfig()">
+                        <label for="intermittentEnabled">📊 Lectura Intermitente</label>
+                    </div>
+                    <div class="help-text">
+                        Si está activado, el lector alternará entre períodos de lectura y pausa.
+                        Si está desactivado, el lector hará lectura continua.
+                    </div>
+                </div>
+                
+                <div id="intermittentConfig" style="display: none; margin-left: 30px; padding: 15px; background: #f7fafc; border-radius: 5px; margin-bottom: 20px;">
+                    <div class="form-group">
+                        <label for="readDurationSeconds">⏱️ Duración de Lectura (segundos) *</label>
+                        <input type="number" id="readDurationSeconds" 
+                               th:field="*{readDurationSeconds}" 
+                               min="1" 
+                               value="5"
+                               style="max-width: 200px;">
+                        <div class="help-text">Tiempo que el lector estará leyendo tags</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pauseDurationSeconds">⏸️ Duración de Pausa (segundos) *</label>
+                        <input type="number" id="pauseDurationSeconds" 
+                               th:field="*{pauseDurationSeconds}" 
+                               min="1" 
+                               value="5"
+                               style="max-width: 200px;">
+                        <div class="help-text">Tiempo que el lector estará en pausa</div>
+                    </div>
+                </div>
+                
                 <div style="margin-top: 30px;">
                     <button type="submit" class="btn">💾 Guardar Cambios</button>
                     <a href="/readers" class="btn">Cancelar</a>
                 </div>
             </form>
+        </div>
+        
+        <div class="card">
+            <h2>🎮 Control de Lectura</h2>
+            <p style="margin-bottom: 15px; color: #666;">
+                Estado actual: 
+                <span th:if="${reader.isConnected}" style="color: #48bb78; font-weight: bold;">✓ Conectado</span>
+                <span th:unless="${reader.isConnected}" style="color: #f56565; font-weight: bold;">✗ Desconectado</span>
+                <span th:if="${reader.isReading}" style="color: #48bb78; font-weight: bold; margin-left: 10px;">📖 Leyendo</span>
+                <span th:unless="${reader.isReading}" style="color: #718096; font-weight: bold; margin-left: 10px;">⏸️ Detenido</span>
+            </p>
+            
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <form th:action="@{/readers/{id}/start(id=${reader.id})}" method="post" style="display: inline;">
+                    <button type="submit" class="btn btn-success" 
+                            th:disabled="${!reader.isConnected}">
+                        ▶️ Iniciar Lectura
+                    </button>
+                </form>
+                
+                <form th:action="@{/readers/{id}/stop(id=${reader.id})}" method="post" style="display: inline;">
+                    <button type="submit" class="btn" 
+                            th:disabled="${!reader.isConnected}">
+                        ⏸️ Detener Lectura
+                    </button>
+                </form>
+                
+                <form th:action="@{/readers/{id}/reset(id=${reader.id})}" method="post" style="display: inline;">
+                    <button type="submit" class="btn" 
+                            th:disabled="${!reader.isConnected}">
+                        🔄 Reiniciar Lector
+                    </button>
+                </form>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 5px;">
+                <strong>ℹ️ Información:</strong>
+                <ul style="margin-top: 10px; margin-left: 20px; color: #666;">
+                    <li>Si el lector está en <strong>modo intermitente</strong>, los botones iniciarán/detendrán el ciclo automático</li>
+                    <li>Si el lector está en <strong>modo continuo</strong>, los botones iniciarán/detendrán la lectura continua</li>
+                    <li>Después de cambiar la configuración, guarda los cambios y reinicia el lector</li>
+                </ul>
+            </div>
         </div>
         
         <div class="card">

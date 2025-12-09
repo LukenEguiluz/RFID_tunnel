@@ -130,6 +130,45 @@
                     </div>
                 </div>
                 
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;">
+                
+                <h3 style="margin-bottom: 15px; color: #333; font-size: 16px;">⚙️ Modo de Lectura (Opcional)</h3>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="intermittentEnabled" 
+                               th:field="*{intermittentEnabled}"
+                               onchange="toggleIntermittentConfig()">
+                        <label for="intermittentEnabled">📊 Lectura Intermitente</label>
+                    </div>
+                    <div class="help-text">
+                        Si está activado, el lector alternará entre períodos de lectura y pausa.
+                        Si está desactivado (por defecto), el lector hará lectura continua.
+                    </div>
+                </div>
+                
+                <div id="intermittentConfig" style="display: none; margin-left: 30px; padding: 15px; background: #f7fafc; border-radius: 5px; margin-bottom: 20px;">
+                    <div class="form-group">
+                        <label for="readDurationSeconds">⏱️ Duración de Lectura (segundos)</label>
+                        <input type="number" id="readDurationSeconds" 
+                               th:field="*{readDurationSeconds}" 
+                               min="1" 
+                               value="5"
+                               style="max-width: 200px;">
+                        <div class="help-text">Tiempo que el lector estará leyendo tags (por defecto: 5)</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pauseDurationSeconds">⏸️ Duración de Pausa (segundos)</label>
+                        <input type="number" id="pauseDurationSeconds" 
+                               th:field="*{pauseDurationSeconds}" 
+                               min="1" 
+                               value="5"
+                               style="max-width: 200px;">
+                        <div class="help-text">Tiempo que el lector estará en pausa (por defecto: 5)</div>
+                    </div>
+                </div>
+                
                 <div style="margin-top: 30px;">
                     <button type="submit" class="btn">💾 Guardar</button>
                     <a href="/readers" class="btn btn-secondary">Cancelar</a>
@@ -137,6 +176,17 @@
             </form>
         </div>
     </div>
+    <script>
+        function toggleIntermittentConfig() {
+            const checkbox = document.getElementById('intermittentEnabled');
+            const configDiv = document.getElementById('intermittentConfig');
+            if (checkbox.checked) {
+                configDiv.style.display = 'block';
+            } else {
+                configDiv.style.display = 'none';
+            }
+        }
+    </script>
 </body>
 </html>
 
