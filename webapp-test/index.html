@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test RFID Gateway</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .config-section {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        
+        .btn-primary {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            background: #e53e3e;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 101, 101, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: 600;
+        }
+        
+        .status.idle {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        
+        .status.reading {
+            background: #c6f6d5;
+            color: #22543d;
+            animation: pulse 2s infinite;
+        }
+        
+        .status.stopped {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .tags-section {
+            margin-top: 30px;
+        }
+        
+        .tags-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .tags-count {
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .tags-list {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .tag-item {
+            background: white;
+            padding: 10px 15px;
+            margin: 5px 0;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            font-family: monospace;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .tag-item:first-child {
+            margin-top: 0;
+        }
+        
+        .empty-tags {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+        }
+        
+        .controls {
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .log {
+            background: #1a202c;
+            color: #68d391;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        
+        .log-entry.error {
+            color: #fc8181;
+        }
+        
+        .log-entry.success {
+            color: #68d391;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📡 Test RFID Gateway</h1>
+        <p class="subtitle">Inicia lectura, ve tags únicos y detén cuando quieras</p>
+        
+        <div class="config-section">
+            <div class="form-group">
+                <label for="gatewayUrl">URL del Gateway:</label>
+                <input type="text" id="gatewayUrl" value="http://192.168.0.189:8080" placeholder="http://192.168.0.189:8080">
+            </div>
+            
+            <div class="form-group">
+                <label for="groupId">ID del Grupo:</label>
+                <input type="text" id="groupId" value="" placeholder="entrada-principal">
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    O deja vacío y usa readerId individual
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label for="readerId">ID del Lector (si no usas grupo):</label>
+                <input type="text" id="readerId" value="" placeholder="reader-1">
+            </div>
+        </div>
+        
+        <div id="status" class="status idle">
+            ⏸️ Listo para iniciar lectura
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" class="btn btn-primary" onclick="startReading()">
+                ▶️ Iniciar Lectura
+            </button>
+            <button id="stopBtn" class="btn btn-danger" onclick="stopReading()" disabled>
+                ⏸️ Detener Lectura
+            </button>
+        </div>
+        
+        <div class="tags-section">
+            <div class="tags-header">
+                <h2>🏷️ Tags RFID Únicos Detectados</h2>
+                <span id="tagsCount" class="tags-count">0 tags</span>
+            </div>
+            <div id="tagsList" class="tags-list">
+                <div class="empty-tags">No hay tags detectados aún</div>
+            </div>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+    
+    <script>
+        let sessionId = null;
+        let pollInterval = null;
+        
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function updateStatus(status, message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${status}`;
+            statusDiv.textContent = message;
+        }
+        
+        async function startReading() {
+            const gatewayUrl = document.getElementById('gatewayUrl').value.trim();
+            const groupId = document.getElementById('groupId').value.trim();
+            const readerId = document.getElementById('readerId').value.trim();
+            
+            if (!gatewayUrl) {
+                alert('Por favor ingresa la URL del gateway');
+                return;
+            }
+            
+            if (!groupId && !readerId) {
+                alert('Por favor ingresa un groupId o readerId');
+                return;
+            }
+            
+            try {
+                addLog(`Iniciando sesión...`, 'info');
+                
+                const body = groupId ? { groupId } : { readerId };
+                
+                const response = await fetch(`${gatewayUrl}/api/sessions/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `Error ${response.status}`);
+                }
+                
+                const session = await response.json();
+                sessionId = session.sessionId;
+                
+                addLog(`✅ Sesión iniciada: ${sessionId.substring(0, 8)}...`, 'success');
+                updateStatus('reading', `📖 Leyendo... Sesión: ${sessionId.substring(0, 8)}...`);
+                
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+                // Iniciar polling cada 1 segundo
+                startPolling();
+                
+            } catch (error) {
+                addLog(`❌ Error: ${error.message}`, 'error');
+                alert(`Error al iniciar lectura: ${error.message}`);
+            }
+        }
+        
+        function startPolling() {
+            const gatewayUrl = document.getElementById('gatewayUrl').value.trim();
+            
+            pollInterval = setInterval(async () => {
+                if (!sessionId) return;
+                
+                try {
+                    const response = await fetch(`${gatewayUrl}/api/sessions/${sessionId}`);
+                    
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            stopPolling();
+                            addLog('⚠️ Sesión no encontrada', 'error');
+                            return;
+                        }
+                        throw new Error(`Error ${response.status}`);
+                    }
+                    
+                    const status = await response.json();
+                    
+                    // Actualizar contador
+                    document.getElementById('tagsCount').textContent = `${status.epcCount} tags únicos`;
+                    
+                    // Mostrar tags únicos
+                    displayTags(status.epcs);
+                    
+                    // Si la sesión está detenida, limpiar
+                    if (status.status !== 'ACTIVE') {
+                        stopPolling();
+                        document.getElementById('startBtn').disabled = false;
+                        document.getElementById('stopBtn').disabled = true;
+                        updateStatus('stopped', `⏸️ Sesión ${status.status.toLowerCase()}`);
+                    }
+                    
+                } catch (error) {
+                    addLog(`❌ Error en polling: ${error.message}`, 'error');
+                }
+            }, 1000);
+            
+            addLog('🔄 Polling iniciado (cada 1 segundo)', 'info');
+        }
+        
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+        
+        function displayTags(epcs) {
+            const tagsList = document.getElementById('tagsList');
+            
+            if (!epcs || epcs.length === 0) {
+                tagsList.innerHTML = '<div class="empty-tags">No hay tags detectados aún</div>';
+                return;
+            }
+            
+            // Ordenar tags
+            const sortedEpcs = [...epcs].sort();
+            
+            tagsList.innerHTML = sortedEpcs.map(epc => `
+                <div class="tag-item">
+                    <span>${epc}</span>
+                </div>
+            `).join('');
+        }
+        
+        async function stopReading() {
+            if (!sessionId) return;
+            
+            const gatewayUrl = document.getElementById('gatewayUrl').value.trim();
+            
+            try {
+                addLog(`Deteniendo sesión...`, 'info');
+                stopPolling();
+                
+                const response = await fetch(`${gatewayUrl}/api/sessions/${sessionId}/stop`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}`);
+                }
+                
+                const final = await response.json();
+                
+                addLog(`✅ Sesión detenida. Tags finales: ${final.epcCount}`, 'success');
+                updateStatus('stopped', `⏸️ Sesión detenida. ${final.epcCount} tags únicos detectados`);
+                
+                // Mostrar tags finales
+                displayTags(final.epcs);
+                document.getElementById('tagsCount').textContent = `${final.epcCount} tags únicos`;
+                
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                
+                sessionId = null;
+                
+            } catch (error) {
+                addLog(`❌ Error al detener: ${error.message}`, 'error');
+                alert(`Error al detener lectura: ${error.message}`);
+            }
+        }
+        
+        // Limpiar al cerrar
+        window.addEventListener('beforeunload', () => {
+            if (sessionId) {
+                stopReading();
+            }
+        });
+        
+        addLog('🚀 Aplicación iniciada', 'success');
+    </script>
+</body>
+</html>
+
