@@ -2,6 +2,8 @@ package com.rfidgateway.session;
 
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -9,16 +11,35 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Data
 public class ReadingSession {
     private String sessionId;
-    private String readerId;
+    private String readerId;      // Para sesiones de un solo lector (legacy)
+    private String groupId;       // Para sesiones de grupo
+    private List<String> readerIds;  // Lista de lectores en la sesión
     private SessionStatus status;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Set<String> detectedEpcs;  // EPCs únicos detectados
     private AtomicInteger totalReads;    // Total de lecturas (puede haber duplicados)
     
+    // Constructor para sesión de un solo lector (legacy)
     public ReadingSession(String sessionId, String readerId) {
         this.sessionId = sessionId;
         this.readerId = readerId;
+        this.groupId = null;
+        this.readerIds = new ArrayList<>();
+        this.readerIds.add(readerId);
+        this.status = SessionStatus.ACTIVE;
+        this.startTime = LocalDateTime.now();
+        this.endTime = null;
+        this.detectedEpcs = ConcurrentHashMap.newKeySet();
+        this.totalReads = new AtomicInteger(0);
+    }
+    
+    // Constructor para sesión de grupo
+    public ReadingSession(String sessionId, String groupId, List<String> readerIds) {
+        this.sessionId = sessionId;
+        this.readerId = null;
+        this.groupId = groupId;
+        this.readerIds = new ArrayList<>(readerIds);
         this.status = SessionStatus.ACTIVE;
         this.startTime = LocalDateTime.now();
         this.endTime = null;

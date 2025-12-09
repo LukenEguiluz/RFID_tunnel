@@ -21,6 +21,9 @@ public class SessionService {
     // Mapeo de readerId -> sessionId activa (para verificar que no haya duplicados)
     private final Map<String, String> readerToActiveSession = new ConcurrentHashMap<>();
     
+    // Mapeo de groupId -> sessionId activa (para verificar que no haya duplicados)
+    private final Map<String, String> groupToActiveSession = new ConcurrentHashMap<>();
+    
     /**
      * Inicia una nueva sesión para un lector
      */
@@ -87,11 +90,63 @@ public class SessionService {
         // Mover a sesiones completadas
         completedSessions.put(sessionId, session);
         
-        // Limpiar mapeo de lector
-        readerToActiveSession.remove(session.getReaderId());
+        // Limpiar mapeos
+        if (session.getReaderId() != null) {
+            readerToActiveSession.remove(session.getReaderId());
+        }
+        if (session.getGroupId() != null) {
+            groupToActiveSession.remove(session.getGroupId());
+            // Limpiar mapeos de todos los lectores del grupo
+            if (session.getReaderIds() != null) {
+                session.getReaderIds().forEach(readerToActiveSession::remove);
+            }
+        }
         
-        log.info("Sesión {} detenida para lector {}. EPCs detectados: {}", 
-                sessionId, session.getReaderId(), session.getEpcCount());
+        String target = session.getGroupId() != null ? 
+            "grupo " + session.getGroupId() : 
+            "lector " + session.getReaderId();
+        
+        log.info("Sesión {} detenida para {}. EPCs detectados: {}", 
+                sessionId, target, session.getEpcCount());
+        
+        return session;
+    }
+    
+    /**
+     * Inicia una nueva sesión para un grupo de lectores
+     */
+    public ReadingSession startGroupSession(String groupId, List<String> readerIds) {
+        // Verificar que no haya sesión activa para este grupo
+        if (groupToActiveSession.containsKey(groupId)) {
+            String existingSessionId = groupToActiveSession.get(groupId);
+            throw new IllegalStateException(
+                String.format("Ya existe una sesión activa para el grupo %s: %s", groupId, existingSessionId)
+            );
+        }
+        
+        // Verificar que ninguno de los lectores tenga sesión activa
+        for (String readerId : readerIds) {
+            if (hasActiveSession(readerId)) {
+                String existingSessionId = readerToActiveSession.get(readerId);
+                throw new IllegalStateException(
+                    String.format("El lector %s ya tiene una sesión activa: %s", readerId, existingSessionId)
+                );
+            }
+        }
+        
+        // Crear nueva sesión
+        String sessionId = UUID.randomUUID().toString();
+        ReadingSession session = new ReadingSession(sessionId, groupId, readerIds);
+        
+        // Almacenar
+        activeSessions.put(sessionId, session);
+        groupToActiveSession.put(groupId, sessionId);
+        
+        // Mapear cada lector a la sesión
+        readerIds.forEach(readerId -> readerToActiveSession.put(readerId, sessionId));
+        
+        log.info("Sesión {} iniciada para grupo {} con {} lector(es)", 
+                sessionId, groupId, readerIds.size());
         
         return session;
     }
@@ -101,6 +156,13 @@ public class SessionService {
      */
     public boolean hasActiveSession(String readerId) {
         return readerToActiveSession.containsKey(readerId);
+    }
+    
+    /**
+     * Verifica si hay una sesión activa para un grupo
+     */
+    public boolean hasActiveGroupSession(String groupId) {
+        return groupToActiveSession.containsKey(groupId);
     }
     
     /**

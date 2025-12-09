@@ -1,6 +1,8 @@
 package com.rfidgateway.controller;
 
+import com.rfidgateway.model.ReaderGroup;
 import com.rfidgateway.reader.ReaderManager;
+import com.rfidgateway.repository.ReaderGroupRepository;
 import com.rfidgateway.repository.ReaderRepository;
 import com.rfidgateway.session.ReadingSession;
 import com.rfidgateway.session.SessionService;
@@ -29,20 +31,96 @@ public class SessionController {
     @Autowired
     private ReaderRepository readerRepository;
     
+    @Autowired
+    private ReaderGroupRepository groupRepository;
+    
     /**
      * Iniciar una nueva sesión de lectura
      * POST /api/sessions/start
-     * Body: { "readerId": "reader-1" }
+     * Body: { "groupId": "group-1" }  o  { "readerId": "reader-1" } (legacy)
      */
     @PostMapping("/start")
     public ResponseEntity<?> startSession(@RequestBody Map<String, String> request) {
+        String groupId = request.get("groupId");
         String readerId = request.get("readerId");
         
-        if (readerId == null || readerId.isEmpty()) {
+        // Priorizar groupId sobre readerId
+        if (groupId != null && !groupId.isEmpty()) {
+            return startGroupSession(groupId);
+        } else if (readerId != null && !readerId.isEmpty()) {
+            return startSingleReaderSession(readerId);
+        } else {
             return ResponseEntity.badRequest()
-                .body(Map.of("error", "readerId es requerido"));
+                .body(Map.of("error", "groupId o readerId es requerido"));
+        }
+    }
+    
+    /**
+     * Inicia sesión para un grupo de lectores
+     */
+    private ResponseEntity<?> startGroupSession(String groupId) {
+        // Verificar que el grupo exista
+        var groupOpt = groupRepository.findById(groupId);
+        if (groupOpt.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Grupo no encontrado: " + groupId));
         }
         
+        ReaderGroup group = groupOpt.get();
+        
+        // Verificar que el grupo esté habilitado
+        if (group.getEnabled() == null || !group.getEnabled()) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "El grupo no está habilitado: " + groupId));
+        }
+        
+        // Obtener lectores habilitados y conectados del grupo
+        List<String> connectedReaderIds = group.getReaders().stream()
+            .filter(reader -> reader.getEnabled() != null && reader.getEnabled())
+            .filter(reader -> reader.getIsConnected() != null && reader.getIsConnected())
+            .map(reader -> reader.getId())
+            .collect(Collectors.toList());
+        
+        if (connectedReaderIds.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "No hay lectores conectados en el grupo: " + groupId));
+        }
+        
+        try {
+            // Crear sesión de grupo
+            ReadingSession session = sessionService.startGroupSession(groupId, connectedReaderIds);
+            
+            // Iniciar lectura en todos los lectores del grupo
+            for (String readerId : connectedReaderIds) {
+                readerManager.startSessionReading(readerId, session.getSessionId());
+            }
+            
+            // Respuesta
+            Map<String, Object> response = new HashMap<>();
+            response.put("sessionId", session.getSessionId());
+            response.put("groupId", session.getGroupId());
+            response.put("readerIds", session.getReaderIds());
+            response.put("readerCount", session.getReaderIds().size());
+            response.put("status", session.getStatus().toString());
+            response.put("startTime", session.getStartTime().toString());
+            response.put("message", "Sesión de grupo iniciada exitosamente");
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error al iniciar sesión de grupo: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error al iniciar sesión de grupo: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Inicia sesión para un solo lector (legacy)
+     */
+    private ResponseEntity<?> startSingleReaderSession(String readerId) {
         // Verificar que el lector exista
         if (!readerRepository.existsById(readerId)) {
             return ResponseEntity.badRequest()
@@ -97,7 +175,12 @@ public class SessionController {
         
         Map<String, Object> response = new HashMap<>();
         response.put("sessionId", session.getSessionId());
-        response.put("readerId", session.getReaderId());
+        if (session.getGroupId() != null) {
+            response.put("groupId", session.getGroupId());
+            response.put("readerIds", session.getReaderIds());
+        } else {
+            response.put("readerId", session.getReaderId());
+        }
         response.put("status", session.getStatus().toString());
         response.put("startTime", session.getStartTime().toString());
         response.put("endTime", session.getEndTime() != null ? session.getEndTime().toString() : null);
@@ -117,8 +200,14 @@ public class SessionController {
         try {
             ReadingSession session = sessionService.stopSession(sessionId);
             
-            // Detener lectura en el lector
-            readerManager.stopSessionReading(session.getReaderId());
+            // Detener lectura en todos los lectores de la sesión
+            if (session.getGroupId() != null && session.getReaderIds() != null) {
+                // Sesión de grupo: detener en todos los lectores
+                session.getReaderIds().forEach(readerManager::stopSessionReading);
+            } else if (session.getReaderId() != null) {
+                // Sesión de un solo lector (legacy)
+                readerManager.stopSessionReading(session.getReaderId());
+            }
             
             Map<String, Object> response = new HashMap<>();
             response.put("sessionId", session.getSessionId());
