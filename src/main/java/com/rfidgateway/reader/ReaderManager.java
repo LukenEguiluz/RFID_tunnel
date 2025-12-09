@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -38,6 +39,8 @@ public class ReaderManager {
     private final Map<String, ImpinjReader> readers = new ConcurrentHashMap<>();
     private final Map<String, ReaderInfo> readerInfos = new ConcurrentHashMap<>();
     private final ScheduledExecutorService reconnectExecutor = Executors.newScheduledThreadPool(5);
+    private final Map<String, ScheduledFuture<?>> intermittentTasks = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService intermittentExecutor = Executors.newScheduledThreadPool(10);
 
     @PostConstruct
     public void initialize() {
@@ -54,6 +57,16 @@ public class ReaderManager {
     @PreDestroy
     public void shutdown() {
         log.info("Cerrando ReaderManager...");
+        
+        // Detener todas las tareas intermitentes
+        for (ScheduledFuture<?> task : intermittentTasks.values()) {
+            if (task != null && !task.isCancelled()) {
+                task.cancel(false);
+            }
+        }
+        intermittentTasks.clear();
+        intermittentExecutor.shutdown();
+        
         reconnectExecutor.shutdown();
         
         for (Map.Entry<String, ImpinjReader> entry : readers.entrySet()) {
@@ -134,34 +147,44 @@ public class ReaderManager {
                 log.warn("Interrupción durante pausa antes de iniciar");
             }
             
-            // Verificar estado antes de iniciar
-            Status status = impinjReader.queryStatus();
-            log.info("Estado del lector {} antes de iniciar: Singulating={}, Connected={}", 
-                    readerId, status.getIsSingulating(), status.getIsConnected());
-            
-            // Iniciar lectura continua
-            log.info("Iniciando inventario en lector {}...", readerId);
-            impinjReader.start();
-            
-            // Verificar estado después de iniciar
-            try {
-                Thread.sleep(500);
-                Status statusAfter = impinjReader.queryStatus();
-                log.info("Estado del lector {} después de iniciar: Singulating={}, Connected={}", 
-                        readerId, statusAfter.getIsSingulating(), statusAfter.getIsConnected());
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
-            
             readers.put(readerId, impinjReader);
             
             // Actualizar estado en BD
             readerConfig.setIsConnected(true);
-            readerConfig.setIsReading(true);
+            readerConfig.setIsReading(false); // Inicialmente no está leyendo
             readerConfig.setLastSeen(java.time.LocalDateTime.now());
             readerRepository.save(readerConfig);
             
-            log.info("Lector {} conectado y leyendo exitosamente", readerConfig.getName());
+            // Iniciar lectura según el modo configurado
+            if (Boolean.TRUE.equals(readerConfig.getIntermittentEnabled())) {
+                log.info("Lector {} configurado en modo intermitente. Iniciando ciclo...", readerConfig.getName());
+                startIntermittentReading(readerId, readerConfig);
+            } else {
+                // Modo continuo (comportamiento original)
+                log.info("Iniciando lectura continua en lector {}...", readerId);
+                
+                // Verificar estado antes de iniciar
+                Status status = impinjReader.queryStatus();
+                log.info("Estado del lector {} antes de iniciar: Singulating={}, Connected={}", 
+                        readerId, status.getIsSingulating(), status.getIsConnected());
+                
+                impinjReader.start();
+                
+                // Verificar estado después de iniciar
+                try {
+                    Thread.sleep(500);
+                    Status statusAfter = impinjReader.queryStatus();
+                    log.info("Estado del lector {} después de iniciar: Singulating={}, Connected={}", 
+                            readerId, statusAfter.getIsSingulating(), statusAfter.getIsConnected());
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+                
+                readerConfig.setIsReading(true);
+                readerRepository.save(readerConfig);
+            }
+            
+            log.info("Lector {} conectado exitosamente", readerConfig.getName());
             
             // Notificar reconexión vía WebSocket
             webSocketEventService.notifyReaderReconnected(readerId, readerConfig.getName());
@@ -255,6 +278,9 @@ public class ReaderManager {
     }
 
     public void disconnectReader(String readerId) {
+        // Detener lectura intermitente si está activa
+        stopIntermittentReading(readerId);
+        
         ImpinjReader reader = readers.remove(readerId);
         if (reader != null) {
             try {
@@ -278,16 +304,28 @@ public class ReaderManager {
     }
 
     public void startReader(String readerId) {
+        Reader readerConfig = readerRepository.findById(readerId).orElse(null);
+        if (readerConfig == null) {
+            log.error("Lector {} no encontrado", readerId);
+            return;
+        }
+        
         ImpinjReader reader = readers.get(readerId);
-        if (reader != null && reader.isConnected()) {
+        if (reader == null || !reader.isConnected()) {
+            log.error("Lector {} no está conectado", readerId);
+            return;
+        }
+        
+        // Si está en modo intermitente, iniciar el ciclo
+        if (Boolean.TRUE.equals(readerConfig.getIntermittentEnabled())) {
+            startIntermittentReading(readerId, readerConfig);
+        } else {
+            // Modo continuo
             try {
                 reader.start();
-                Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-                if (readerConfig != null) {
-                    readerConfig.setIsReading(true);
-                    readerRepository.save(readerConfig);
-                }
-                log.info("Lector {} iniciado", readerId);
+                readerConfig.setIsReading(true);
+                readerRepository.save(readerConfig);
+                log.info("Lector {} iniciado (modo continuo)", readerId);
             } catch (OctaneSdkException e) {
                 log.error("Error al iniciar lector {}: {}", readerId, e.getMessage());
             }
@@ -295,16 +333,28 @@ public class ReaderManager {
     }
 
     public void stopReader(String readerId) {
+        Reader readerConfig = readerRepository.findById(readerId).orElse(null);
+        if (readerConfig == null) {
+            log.error("Lector {} no encontrado", readerId);
+            return;
+        }
+        
         ImpinjReader reader = readers.get(readerId);
-        if (reader != null && reader.isConnected()) {
+        if (reader == null || !reader.isConnected()) {
+            log.error("Lector {} no está conectado", readerId);
+            return;
+        }
+        
+        // Si está en modo intermitente, detener el ciclo
+        if (Boolean.TRUE.equals(readerConfig.getIntermittentEnabled())) {
+            stopIntermittentReading(readerId);
+        } else {
+            // Modo continuo
             try {
                 reader.stop();
-                Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-                if (readerConfig != null) {
-                    readerConfig.setIsReading(false);
-                    readerRepository.save(readerConfig);
-                }
-                log.info("Lector {} detenido", readerId);
+                readerConfig.setIsReading(false);
+                readerRepository.save(readerConfig);
+                log.info("Lector {} detenido (modo continuo)", readerId);
             } catch (OctaneSdkException e) {
                 log.error("Error al detener lector {}: {}", readerId, e.getMessage());
             }
@@ -322,6 +372,9 @@ public class ReaderManager {
 
     public void handleConnectionLost(String readerId) {
         log.warn("Conexión perdida con lector {}", readerId);
+        
+        // Detener lectura intermitente si está activa
+        stopIntermittentReading(readerId);
         
         Reader readerConfig = readerRepository.findById(readerId).orElse(null);
         if (readerConfig != null) {
@@ -460,6 +513,112 @@ public class ReaderManager {
             
         } catch (OctaneSdkException e) {
             log.error("Error al resetear antenas del lector {}: {}", readerId, e.getMessage());
+        }
+    }
+
+    /**
+     * Inicia lectura intermitente para un lector
+     */
+    public void startIntermittentReading(String readerId, Reader readerConfig) {
+        if (intermittentTasks.containsKey(readerId)) {
+            log.warn("Lectura intermitente ya está activa para lector {}", readerId);
+            return;
+        }
+        
+        ImpinjReader reader = readers.get(readerId);
+        if (reader == null || !reader.isConnected()) {
+            log.error("Lector {} no está conectado. No se puede iniciar lectura intermitente.", readerId);
+            return;
+        }
+        
+        int readDuration = readerConfig.getReadDurationSeconds() != null ? readerConfig.getReadDurationSeconds() : 5;
+        int pauseDuration = readerConfig.getPauseDurationSeconds() != null ? readerConfig.getPauseDurationSeconds() : 5;
+        
+        log.info("Iniciando lectura intermitente para lector {}: {}s lectura, {}s pausa", 
+                readerId, readDuration, pauseDuration);
+        
+        // Crear tarea que ejecuta el ciclo de lectura/pausa
+        Runnable cycleTask = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ImpinjReader currentReader = readers.get(readerId);
+                    if (currentReader == null || !currentReader.isConnected()) {
+                        log.warn("Lector {} desconectado. Deteniendo lectura intermitente.", readerId);
+                        stopIntermittentReading(readerId);
+                        return;
+                    }
+                    
+                    // Fase de lectura
+                    log.debug("Iniciando fase de lectura para lector {} ({}s)", readerId, readDuration);
+                    currentReader.start();
+                    
+                    Reader currentConfig = readerRepository.findById(readerId).orElse(null);
+                    if (currentConfig != null) {
+                        currentConfig.setIsReading(true);
+                        readerRepository.save(currentConfig);
+                    }
+                    
+                    // Esperar duración de lectura
+                    Thread.sleep(readDuration * 1000L);
+                    
+                    // Fase de pausa
+                    log.debug("Iniciando fase de pausa para lector {} ({}s)", readerId, pauseDuration);
+                    currentReader.stop();
+                    
+                    currentConfig = readerRepository.findById(readerId).orElse(null);
+                    if (currentConfig != null) {
+                        currentConfig.setIsReading(false);
+                        readerRepository.save(currentConfig);
+                    }
+                    
+                    // Esperar duración de pausa
+                    Thread.sleep(pauseDuration * 1000L);
+                    
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Lectura intermitente interrumpida para lector {}", readerId);
+                    stopIntermittentReading(readerId);
+                } catch (Exception e) {
+                    log.error("Error en ciclo de lectura intermitente para lector {}: {}", readerId, e.getMessage(), e);
+                }
+            }
+        };
+        
+        // Programar tarea para ejecutarse inmediatamente y luego repetirse
+        ScheduledFuture<?> task = intermittentExecutor.scheduleWithFixedDelay(
+                cycleTask, 
+                0, // Iniciar inmediatamente
+                readDuration + pauseDuration, // Intervalo total del ciclo
+                TimeUnit.SECONDS
+        );
+        
+        intermittentTasks.put(readerId, task);
+    }
+
+    /**
+     * Detiene lectura intermitente para un lector
+     */
+    public void stopIntermittentReading(String readerId) {
+        ScheduledFuture<?> task = intermittentTasks.remove(readerId);
+        if (task != null) {
+            task.cancel(false);
+            log.info("Lectura intermitente detenida para lector {}", readerId);
+            
+            // Asegurar que el lector esté detenido
+            ImpinjReader reader = readers.get(readerId);
+            if (reader != null && reader.isConnected()) {
+                try {
+                    reader.stop();
+                    Reader readerConfig = readerRepository.findById(readerId).orElse(null);
+                    if (readerConfig != null) {
+                        readerConfig.setIsReading(false);
+                        readerRepository.save(readerConfig);
+                    }
+                } catch (Exception e) {
+                    log.error("Error al detener lector {}: {}", readerId, e.getMessage());
+                }
+            }
         }
     }
 

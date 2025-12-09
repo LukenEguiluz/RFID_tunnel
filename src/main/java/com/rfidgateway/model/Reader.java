@@ -41,6 +41,16 @@ public class Reader {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt = LocalDateTime.now();
     
+    // Configuración de lectura intermitente
+    @Column(name = "intermittent_enabled")
+    private Boolean intermittentEnabled = false;
+    
+    @Column(name = "read_duration_seconds")
+    private Integer readDurationSeconds = 5; // Duración de lectura en segundos
+    
+    @Column(name = "pause_duration_seconds")
+    private Integer pauseDurationSeconds = 5; // Duración de pausa en segundos
+    
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
