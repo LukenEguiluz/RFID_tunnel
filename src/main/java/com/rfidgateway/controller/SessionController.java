@@ -37,18 +37,40 @@ public class SessionController {
     /**
      * Iniciar una nueva sesión de lectura
      * POST /api/sessions/start
-     * Body: { "groupId": "group-1" }  o  { "readerId": "reader-1" } (legacy)
+     * Body: { "groupId": "group-1", "maxDurationMinutes": 30 }  o  
+     *       { "readerId": "reader-1", "maxDurationMinutes": 30 } (legacy)
      */
     @PostMapping("/start")
-    public ResponseEntity<?> startSession(@RequestBody Map<String, String> request) {
-        String groupId = request.get("groupId");
-        String readerId = request.get("readerId");
+    public ResponseEntity<?> startSession(@RequestBody Map<String, Object> request) {
+        String groupId = request.get("groupId") != null ? request.get("groupId").toString() : null;
+        String readerId = request.get("readerId") != null ? request.get("readerId").toString() : null;
+        Integer maxDurationMinutes = null;
+        
+        // Extraer maxDurationMinutes si está presente
+        if (request.get("maxDurationMinutes") != null) {
+            try {
+                Object durationObj = request.get("maxDurationMinutes");
+                if (durationObj instanceof Number) {
+                    maxDurationMinutes = ((Number) durationObj).intValue();
+                } else if (durationObj instanceof String) {
+                    maxDurationMinutes = Integer.parseInt((String) durationObj);
+                }
+                // Validar que sea positivo
+                if (maxDurationMinutes != null && maxDurationMinutes <= 0) {
+                    return ResponseEntity.badRequest()
+                        .body(Map.of("error", "maxDurationMinutes debe ser un número positivo"));
+                }
+            } catch (NumberFormatException e) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "maxDurationMinutes debe ser un número válido"));
+            }
+        }
         
         // Priorizar groupId sobre readerId
         if (groupId != null && !groupId.isEmpty()) {
-            return startGroupSession(groupId);
+            return startGroupSession(groupId, maxDurationMinutes);
         } else if (readerId != null && !readerId.isEmpty()) {
-            return startSingleReaderSession(readerId);
+            return startSingleReaderSession(readerId, maxDurationMinutes);
         } else {
             return ResponseEntity.badRequest()
                 .body(Map.of("error", "groupId o readerId es requerido"));
@@ -58,7 +80,7 @@ public class SessionController {
     /**
      * Inicia sesión para un grupo de lectores
      */
-    private ResponseEntity<?> startGroupSession(String groupId) {
+    private ResponseEntity<?> startGroupSession(String groupId, Integer maxDurationMinutes) {
         // Verificar que el grupo exista
         var groupOpt = groupRepository.findById(groupId);
         if (groupOpt.isEmpty()) {
@@ -88,7 +110,7 @@ public class SessionController {
         
         try {
             // Crear sesión de grupo
-            ReadingSession session = sessionService.startGroupSession(groupId, connectedReaderIds);
+            ReadingSession session = sessionService.startGroupSession(groupId, connectedReaderIds, maxDurationMinutes);
             
             // Iniciar lectura en todos los lectores del grupo
             for (String readerId : connectedReaderIds) {
@@ -103,6 +125,8 @@ public class SessionController {
             response.put("readerCount", session.getReaderIds().size());
             response.put("status", session.getStatus().toString());
             response.put("startTime", session.getStartTime().toString());
+            response.put("maxDurationMinutes", session.getMaxDurationMinutes());
+            response.put("expirationTime", session.getExpirationTime() != null ? session.getExpirationTime().toString() : null);
             response.put("message", "Sesión de grupo iniciada exitosamente");
             
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -120,7 +144,7 @@ public class SessionController {
     /**
      * Inicia sesión para un solo lector (legacy)
      */
-    private ResponseEntity<?> startSingleReaderSession(String readerId) {
+    private ResponseEntity<?> startSingleReaderSession(String readerId, Integer maxDurationMinutes) {
         // Verificar que el lector exista
         if (!readerRepository.existsById(readerId)) {
             return ResponseEntity.badRequest()
@@ -136,7 +160,7 @@ public class SessionController {
         
         try {
             // Crear sesión
-            ReadingSession session = sessionService.startSession(readerId);
+            ReadingSession session = sessionService.startSession(readerId, maxDurationMinutes);
             
             // Iniciar lectura en el lector
             readerManager.startSessionReading(readerId, session.getSessionId());
@@ -147,6 +171,8 @@ public class SessionController {
             response.put("readerId", session.getReaderId());
             response.put("status", session.getStatus().toString());
             response.put("startTime", session.getStartTime().toString());
+            response.put("maxDurationMinutes", session.getMaxDurationMinutes());
+            response.put("expirationTime", session.getExpirationTime() != null ? session.getExpirationTime().toString() : null);
             response.put("message", "Sesión iniciada exitosamente");
             
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -184,6 +210,8 @@ public class SessionController {
         response.put("status", session.getStatus().toString());
         response.put("startTime", session.getStartTime().toString());
         response.put("endTime", session.getEndTime() != null ? session.getEndTime().toString() : null);
+        response.put("maxDurationMinutes", session.getMaxDurationMinutes());
+        response.put("expirationTime", session.getExpirationTime() != null ? session.getExpirationTime().toString() : null);
         response.put("epcs", session.getDetectedEpcs().stream().sorted().collect(Collectors.toList()));
         response.put("epcCount", session.getEpcCount());
         response.put("totalReads", session.getTotalReads());

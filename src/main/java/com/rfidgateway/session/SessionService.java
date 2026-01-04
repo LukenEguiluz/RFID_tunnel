@@ -1,6 +1,7 @@
 package com.rfidgateway.session;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -11,6 +12,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class SessionService {
+    
+    @Value("${gateway.sessions.max-duration-minutes:60}")
+    private Integer defaultMaxDurationMinutes;
     
     // Sesiones activas: sessionId -> ReadingSession
     private final Map<String, ReadingSession> activeSessions = new ConcurrentHashMap<>();
@@ -26,25 +30,38 @@ public class SessionService {
     
     /**
      * Inicia una nueva sesión para un lector
+     * @param readerId ID del lector
+     * @param maxDurationMinutes Duración máxima en minutos (null para usar el valor por defecto)
      */
-    public ReadingSession startSession(String readerId) {
+    public ReadingSession startSession(String readerId, Integer maxDurationMinutes) {
         // Verificar que no haya sesión activa para este lector
         if (hasActiveSession(readerId)) {
             String existingSessionId = readerToActiveSession.get(readerId);
-            throw new IllegalStateException(
-                String.format("Ya existe una sesión activa para el lector %s: %s", readerId, existingSessionId)
+            ReadingSession existingSession = activeSessions.get(existingSessionId);
+            String message = String.format(
+                "El lector %s ya está activo en otra sesión (ID: %s). " +
+                "La sesión actual debe detenerse antes de iniciar una nueva. " +
+                "Iniciada: %s",
+                readerId, 
+                existingSessionId,
+                existingSession != null ? existingSession.getStartTime().toString() : "N/A"
             );
+            throw new IllegalStateException(message);
         }
+        
+        // Usar valor por defecto si no se especifica
+        Integer duration = maxDurationMinutes != null ? maxDurationMinutes : defaultMaxDurationMinutes;
         
         // Crear nueva sesión
         String sessionId = UUID.randomUUID().toString();
-        ReadingSession session = new ReadingSession(sessionId, readerId);
+        ReadingSession session = new ReadingSession(sessionId, readerId, duration);
         
         // Almacenar
         activeSessions.put(sessionId, session);
         readerToActiveSession.put(readerId, sessionId);
         
-        log.info("Sesión {} iniciada para lector {}", sessionId, readerId);
+        log.info("Sesión {} iniciada para lector {} (duración máxima: {} minutos)", 
+                sessionId, readerId, duration);
         return session;
     }
     
@@ -114,29 +131,49 @@ public class SessionService {
     
     /**
      * Inicia una nueva sesión para un grupo de lectores
+     * @param groupId ID del grupo
+     * @param readerIds Lista de IDs de lectores
+     * @param maxDurationMinutes Duración máxima en minutos (null para usar el valor por defecto)
      */
-    public ReadingSession startGroupSession(String groupId, List<String> readerIds) {
+    public ReadingSession startGroupSession(String groupId, List<String> readerIds, Integer maxDurationMinutes) {
         // Verificar que no haya sesión activa para este grupo
         if (groupToActiveSession.containsKey(groupId)) {
             String existingSessionId = groupToActiveSession.get(groupId);
-            throw new IllegalStateException(
-                String.format("Ya existe una sesión activa para el grupo %s: %s", groupId, existingSessionId)
+            ReadingSession existingSession = activeSessions.get(existingSessionId);
+            String message = String.format(
+                "El grupo %s ya está activo en otra sesión (ID: %s). " +
+                "La sesión actual debe detenerse antes de iniciar una nueva. " +
+                "Iniciada: %s",
+                groupId,
+                existingSessionId,
+                existingSession != null ? existingSession.getStartTime().toString() : "N/A"
             );
+            throw new IllegalStateException(message);
         }
         
         // Verificar que ninguno de los lectores tenga sesión activa
         for (String readerId : readerIds) {
             if (hasActiveSession(readerId)) {
                 String existingSessionId = readerToActiveSession.get(readerId);
-                throw new IllegalStateException(
-                    String.format("El lector %s ya tiene una sesión activa: %s", readerId, existingSessionId)
+                ReadingSession existingSession = activeSessions.get(existingSessionId);
+                String message = String.format(
+                    "El lector %s ya está activo en otra sesión (ID: %s). " +
+                    "La sesión actual debe detenerse antes de iniciar una nueva. " +
+                    "Iniciada: %s",
+                    readerId,
+                    existingSessionId,
+                    existingSession != null ? existingSession.getStartTime().toString() : "N/A"
                 );
+                throw new IllegalStateException(message);
             }
         }
         
+        // Usar valor por defecto si no se especifica
+        Integer duration = maxDurationMinutes != null ? maxDurationMinutes : defaultMaxDurationMinutes;
+        
         // Crear nueva sesión
         String sessionId = UUID.randomUUID().toString();
-        ReadingSession session = new ReadingSession(sessionId, groupId, readerIds);
+        ReadingSession session = new ReadingSession(sessionId, groupId, readerIds, duration);
         
         // Almacenar
         activeSessions.put(sessionId, session);
@@ -145,8 +182,8 @@ public class SessionService {
         // Mapear cada lector a la sesión
         readerIds.forEach(readerId -> readerToActiveSession.put(readerId, sessionId));
         
-        log.info("Sesión {} iniciada para grupo {} con {} lector(es)", 
-                sessionId, groupId, readerIds.size());
+        log.info("Sesión {} iniciada para grupo {} con {} lector(es) (duración máxima: {} minutos)", 
+                sessionId, groupId, readerIds.size(), duration);
         
         return session;
     }
@@ -197,6 +234,32 @@ public class SessionService {
         if (!toRemove.isEmpty()) {
             log.debug("Limpieza: {} sesiones antiguas eliminadas", toRemove.size());
         }
+    }
+    
+    /**
+     * Detiene automáticamente las sesiones que han expirado
+     * Este método debe ser llamado periódicamente por un scheduled task
+     * @return Lista de sessionIds que fueron detenidas
+     */
+    public List<String> stopExpiredSessions() {
+        List<String> expiredSessionIds = activeSessions.values().stream()
+            .filter(ReadingSession::isExpired)
+            .map(ReadingSession::getSessionId)
+            .collect(Collectors.toList());
+        
+        List<String> stoppedIds = new ArrayList<>();
+        for (String sessionId : expiredSessionIds) {
+            try {
+                ReadingSession session = stopSession(sessionId);
+                stoppedIds.add(sessionId);
+                log.info("Sesión {} detenida automáticamente por expiración de tiempo (duración máxima: {} minutos)", 
+                        sessionId, session.getMaxDurationMinutes());
+            } catch (Exception e) {
+                log.error("Error al detener sesión expirada {}: {}", sessionId, e.getMessage(), e);
+            }
+        }
+        
+        return stoppedIds;
     }
 }
 

@@ -40,5 +40,9 @@ gateway:
     enabled: true
     interval-seconds: 30
     max-retries: -1  # -1 = infinito
+  sessions:
+    max-duration-minutes: 60  # Tiempo máximo de duración de una sesión (por defecto 60 minutos)
+    expiration-check-interval-seconds: 30  # Intervalo para revisar sesiones expiradas (en segundos)
+    expiration-check-interval-ms: 30000  # Intervalo para revisar sesiones expiradas (en milisegundos, 30 segundos por defecto)
 
 

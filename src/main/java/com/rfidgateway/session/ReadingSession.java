@@ -17,11 +17,13 @@ public class ReadingSession {
     private SessionStatus status;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private Integer maxDurationMinutes;  // Duración máxima en minutos (null = sin límite)
+    private LocalDateTime expirationTime;  // Tiempo de expiración calculado
     private Set<String> detectedEpcs;  // EPCs únicos detectados
     private AtomicInteger totalReads;    // Total de lecturas (puede haber duplicados)
     
     // Constructor para sesión de un solo lector (legacy)
-    public ReadingSession(String sessionId, String readerId) {
+    public ReadingSession(String sessionId, String readerId, Integer maxDurationMinutes) {
         this.sessionId = sessionId;
         this.readerId = readerId;
         this.groupId = null;
@@ -30,12 +32,16 @@ public class ReadingSession {
         this.status = SessionStatus.ACTIVE;
         this.startTime = LocalDateTime.now();
         this.endTime = null;
+        this.maxDurationMinutes = maxDurationMinutes;
+        this.expirationTime = maxDurationMinutes != null && maxDurationMinutes > 0 
+            ? this.startTime.plusMinutes(maxDurationMinutes) 
+            : null;
         this.detectedEpcs = ConcurrentHashMap.newKeySet();
         this.totalReads = new AtomicInteger(0);
     }
     
     // Constructor para sesión de grupo
-    public ReadingSession(String sessionId, String groupId, List<String> readerIds) {
+    public ReadingSession(String sessionId, String groupId, List<String> readerIds, Integer maxDurationMinutes) {
         this.sessionId = sessionId;
         this.readerId = null;
         this.groupId = groupId;
@@ -43,6 +49,10 @@ public class ReadingSession {
         this.status = SessionStatus.ACTIVE;
         this.startTime = LocalDateTime.now();
         this.endTime = null;
+        this.maxDurationMinutes = maxDurationMinutes;
+        this.expirationTime = maxDurationMinutes != null && maxDurationMinutes > 0 
+            ? this.startTime.plusMinutes(maxDurationMinutes) 
+            : null;
         this.detectedEpcs = ConcurrentHashMap.newKeySet();
         this.totalReads = new AtomicInteger(0);
     }
@@ -85,6 +95,16 @@ public class ReadingSession {
      */
     public int getTotalReads() {
         return totalReads.get();
+    }
+    
+    /**
+     * Verifica si la sesión ha expirado
+     */
+    public boolean isExpired() {
+        if (expirationTime == null) {
+            return false; // Sin límite de tiempo
+        }
+        return LocalDateTime.now().isAfter(expirationTime);
     }
 }
 
