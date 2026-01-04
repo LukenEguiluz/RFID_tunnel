@@ -42,6 +42,10 @@ http://localhost:3000
 - ✅ Contador de tags únicos
 - ✅ Log de eventos
 - ✅ Interfaz simple y clara
+- ✅ **Base de datos local (IndexedDB)** para almacenar información de productos
+- ✅ **Generación automática de datos mock** cuando se detecta un EPC nuevo
+- ✅ **Edición de información de productos** (descripción, caducidad, lote)
+- ✅ **Visualización de información** junto a cada EPC detectado
 
 ## 🔧 Detener
 
@@ -55,6 +59,28 @@ docker-compose down
 - Solo muestra tags únicos (sin duplicados)
 - Los tags se ordenan alfabéticamente
 - El log muestra todos los eventos importantes
+
+## 💾 Base de Datos de Productos
+
+La webapp incluye un sistema de base de datos local (IndexedDB) que:
+
+### Funcionalidad Automática
+- **Detección de EPCs nuevos**: Cuando se detecta un EPC que no está en la base de datos, se generan automáticamente datos mock:
+  - Descripción del producto (aleatoria de un catálogo predefinido)
+  - Fecha de caducidad (entre 6 meses y 3 años desde hoy)
+  - Número de lote (formato: L{YYYY}-{NNN})
+
+### Funcionalidad Manual
+- **Editar información**: Haz clic en el botón "✏️ Editar" o "✏️ Agregar Info" en cualquier tag para:
+  - Modificar la descripción del producto
+  - Cambiar la fecha de caducidad
+  - Actualizar el número de lote
+
+### Visualización
+- Los tags muestran la información del producto junto al EPC
+- Badge "Mock" indica que los datos fueron generados automáticamente
+- Badge "Editado" indica que la información fue modificada manualmente
+- Los datos se almacenan localmente en el navegador (IndexedDB)
 
 
 

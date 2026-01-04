@@ -1,7 +1,6 @@
 package com.rfidgateway.config;
 
 import com.rfidgateway.model.Reader;
-import com.rfidgateway.model.Antenna;
 import com.rfidgateway.repository.ReaderRepository;
 import com.rfidgateway.repository.AntennaRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +30,14 @@ public class ReaderConfig {
                 log.info("Puedes usar la API REST para agregar lectores o insertarlos directamente en la BD.");
             } else {
                 log.info("Lectores encontrados en la base de datos: {}", readerRepository.count());
+                // Inicializar contadores de antenas conectadas
+                List<Reader> readers = readerRepository.findAll();
+                for (Reader reader : readers) {
+                    int antennaCount = antennaRepository.findByReaderIdAndEnabledTrue(reader.getId()).size();
+                    reader.setConnectedAntennasCount(antennaCount);
+                    readerRepository.save(reader);
+                }
+                log.info("Contadores de antenas conectadas inicializados");
             }
         };
     }

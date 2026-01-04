@@ -220,6 +220,184 @@
         .log-entry.success {
             color: #68d391;
         }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #333;
+        }
+
+        .close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        .modal-body input,
+        .modal-body textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            font-family: inherit;
+        }
+
+        .modal-body textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .modal-body label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4a5568;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .tag-item {
+            background: white;
+            padding: 15px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .tag-epc {
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .tag-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .tag-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tag-info-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 3px;
+        }
+
+        .tag-info-value {
+            color: #333;
+        }
+
+        .tag-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 5px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-mock {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .badge-edited {
+            background: #c6f6d5;
+            color: #22543d;
+        }
     </style>
 </head>
 <body>
@@ -275,10 +453,275 @@
         
         <div class="log" id="log"></div>
     </div>
+
+    <!-- Modal para editar producto -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📝 Editar Información del Producto</h3>
+                <button class="close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>EPC:</label>
+                    <input type="text" id="modalEpc" readonly style="background: #f7fafc;">
+                </div>
+                <div class="form-group">
+                    <label for="modalDescripcion">Descripción del Producto:</label>
+                    <textarea id="modalDescripcion" placeholder="Ej: Medicamento XYZ 500mg"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="modalCaducidad">Fecha de Caducidad:</label>
+                    <input type="date" id="modalCaducidad">
+                </div>
+                <div class="form-group">
+                    <label for="modalLote">Número de Lote:</label>
+                    <input type="text" id="modalLote" placeholder="Ej: L2024-001">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-small" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-primary btn-small" onclick="saveProduct()">💾 Guardar</button>
+            </div>
+        </div>
+    </div>
     
     <script>
         let sessionId = null;
         let pollInterval = null;
+        let db = null;
+        let currentEditingEpc = null;
+
+        // Inicializar IndexedDB
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('RFIDProductsDB', 1);
+
+                request.onerror = () => {
+                    console.error('Error al abrir la base de datos:', request.error);
+                    reject(request.error);
+                };
+
+                request.onsuccess = () => {
+                    db = request.result;
+                    console.log('Base de datos abierta correctamente');
+                    resolve(db);
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+                    
+                    // Crear objectStore para productos
+                    if (!database.objectStoreNames.contains('productos')) {
+                        const objectStore = database.createObjectStore('productos', { keyPath: 'epc' });
+                        objectStore.createIndex('descripcion', 'descripcion', { unique: false });
+                        objectStore.createIndex('caducidad', 'caducidad', { unique: false });
+                        objectStore.createIndex('lote', 'lote', { unique: false });
+                    }
+                };
+            });
+        }
+
+        // Generar datos mock para un EPC
+        function generateMockData(epc) {
+            const productos = [
+                'Paracetamol 500mg Tabletas',
+                'Ibuprofeno 400mg Cápsulas',
+                'Amoxicilina 500mg Cápsulas',
+                'Aspirina 100mg Tabletas',
+                'Omeprazol 20mg Cápsulas',
+                'Loratadina 10mg Tabletas',
+                'Metformina 500mg Tabletas',
+                'Atorvastatina 20mg Tabletas',
+                'Amlodipino 5mg Tabletas',
+                'Losartán 50mg Tabletas',
+                'Insulina Glargina 100 UI/ml',
+                'Salbutamol Inhalador 100mcg',
+                'Amoxicilina/Ácido Clavulánico 875/125mg',
+                'Azitromicina 500mg Tabletas',
+                'Ciprofloxacino 500mg Tabletas'
+            ];
+
+            const descripcion = productos[Math.floor(Math.random() * productos.length)];
+            
+            // Fecha de caducidad entre 6 meses y 3 años desde hoy
+            const hoy = new Date();
+            const meses = 6 + Math.floor(Math.random() * 30); // 6-36 meses
+            const caducidad = new Date(hoy);
+            caducidad.setMonth(caducidad.getMonth() + meses);
+            const caducidadStr = caducidad.toISOString().split('T')[0];
+
+            // Lote aleatorio
+            const año = hoy.getFullYear();
+            const numeroLote = Math.floor(Math.random() * 999) + 1;
+            const lote = `L${año}-${numeroLote.toString().padStart(3, '0')}`;
+
+            return {
+                epc: epc,
+                descripcion: descripcion,
+                caducidad: caducidadStr,
+                lote: lote,
+                fechaCreacion: new Date().toISOString(),
+                fechaActualizacion: new Date().toISOString(),
+                esMock: true
+            };
+        }
+
+        // Guardar producto en la base de datos
+        function saveProductToDB(producto) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    reject(new Error('Base de datos no inicializada'));
+                    return;
+                }
+
+                const transaction = db.transaction(['productos'], 'readwrite');
+                const objectStore = transaction.objectStore('productos');
+                
+                producto.fechaActualizacion = new Date().toISOString();
+                if (!producto.fechaCreacion) {
+                    producto.fechaCreacion = new Date().toISOString();
+                }
+
+                const request = objectStore.put(producto);
+
+                request.onsuccess = () => {
+                    resolve(producto);
+                };
+
+                request.onerror = () => {
+                    reject(request.error);
+                };
+            });
+        }
+
+        // Obtener producto de la base de datos
+        function getProductFromDB(epc) {
+            return new Promise((resolve, reject) => {
+                if (!db) {
+                    resolve(null);
+                    return;
+                }
+
+                const transaction = db.transaction(['productos'], 'readonly');
+                const objectStore = transaction.objectStore('productos');
+                const request = objectStore.get(epc);
+
+                request.onsuccess = () => {
+                    resolve(request.result || null);
+                };
+
+                request.onerror = () => {
+                    reject(request.error);
+                };
+            });
+        }
+
+        // Obtener múltiples productos
+        async function getProductsFromDB(epcs) {
+            const productos = {};
+            for (const epc of epcs) {
+                const producto = await getProductFromDB(epc);
+                if (producto) {
+                    productos[epc] = producto;
+                }
+            }
+            return productos;
+        }
+
+        // Guardar automáticamente EPCs nuevos con datos mock
+        async function saveNewEpcs(epcs) {
+            if (!db) return;
+
+            for (const epc of epcs) {
+                const existing = await getProductFromDB(epc);
+                if (!existing) {
+                    // Nuevo EPC, generar datos mock y guardar
+                    const mockData = generateMockData(epc);
+                    try {
+                        await saveProductToDB(mockData);
+                        addLog(`📦 Datos mock generados para EPC: ${epc.substring(0, 8)}...`, 'success');
+                    } catch (error) {
+                        console.error('Error al guardar producto mock:', error);
+                    }
+                }
+            }
+        }
+
+        // Abrir modal de edición
+        async function openEditModal(epc) {
+            currentEditingEpc = epc;
+            const producto = await getProductFromDB(epc);
+
+            document.getElementById('modalEpc').value = epc;
+            document.getElementById('modalDescripcion').value = producto ? producto.descripcion : '';
+            document.getElementById('modalCaducidad').value = producto ? producto.caducidad : '';
+            document.getElementById('modalLote').value = producto ? producto.lote : '';
+
+            document.getElementById('editModal').classList.add('show');
+        }
+
+        // Cerrar modal
+        function closeModal() {
+            document.getElementById('editModal').classList.remove('show');
+            currentEditingEpc = null;
+        }
+
+        // Guardar producto desde modal
+        async function saveProduct() {
+            if (!currentEditingEpc || !db) return;
+
+            const descripcion = document.getElementById('modalDescripcion').value.trim();
+            const caducidad = document.getElementById('modalCaducidad').value;
+            const lote = document.getElementById('modalLote').value.trim();
+
+            if (!descripcion || !caducidad || !lote) {
+                alert('Por favor completa todos los campos');
+                return;
+            }
+
+            try {
+                const existing = await getProductFromDB(currentEditingEpc);
+                const producto = {
+                    epc: currentEditingEpc,
+                    descripcion: descripcion,
+                    caducidad: caducidad,
+                    lote: lote,
+                    fechaCreacion: existing ? existing.fechaCreacion : new Date().toISOString(),
+                    fechaActualizacion: new Date().toISOString(),
+                    esMock: false
+                };
+
+                await saveProductToDB(producto);
+                addLog(`✅ Producto guardado para EPC: ${currentEditingEpc.substring(0, 8)}...`, 'success');
+                closeModal();
+
+                // Refrescar la lista de tags
+                if (sessionId) {
+                    const gatewayUrl = document.getElementById('gatewayUrl').value.trim();
+                    try {
+                        const response = await fetch(`${gatewayUrl}/api/sessions/${sessionId}`);
+                        if (response.ok) {
+                            const status = await response.json();
+                            await displayTags(status.epcs);
+                        }
+                    } catch (error) {
+                        console.error('Error al refrescar tags:', error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error al guardar producto:', error);
+                alert('Error al guardar el producto');
+            }
+        }
+
+        // Cerrar modal al hacer clic fuera
+        window.onclick = function(event) {
+            const modal = document.getElementById('editModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
         
         function addLog(message, type = 'info') {
             const log = document.getElementById('log');
@@ -367,8 +810,13 @@
                     // Actualizar contador
                     document.getElementById('tagsCount').textContent = `${status.epcCount} tags únicos`;
                     
+                    // Guardar nuevos EPCs automáticamente
+                    if (status.epcs && status.epcs.length > 0) {
+                        await saveNewEpcs(status.epcs);
+                    }
+                    
                     // Mostrar tags únicos
-                    displayTags(status.epcs);
+                    await displayTags(status.epcs);
                     
                     // Si la sesión está detenida, limpiar
                     if (status.status !== 'ACTIVE') {
@@ -393,7 +841,7 @@
             }
         }
         
-        function displayTags(epcs) {
+        async function displayTags(epcs) {
             const tagsList = document.getElementById('tagsList');
             
             if (!epcs || epcs.length === 0) {
@@ -404,11 +852,59 @@
             // Ordenar tags
             const sortedEpcs = [...epcs].sort();
             
-            tagsList.innerHTML = sortedEpcs.map(epc => `
-                <div class="tag-item">
-                    <span>${epc}</span>
-                </div>
-            `).join('');
+            // Obtener información de productos de la base de datos
+            const productos = await getProductsFromDB(sortedEpcs);
+            
+            tagsList.innerHTML = await Promise.all(sortedEpcs.map(async (epc) => {
+                const producto = productos[epc];
+                const hasProduct = producto !== undefined;
+                
+                if (!hasProduct) {
+                    // Si no hay producto, mostrar solo el EPC
+                    return `
+                        <div class="tag-item">
+                            <div class="tag-epc">${epc}</div>
+                            <div style="color: #999; font-size: 12px;">Sin información de producto</div>
+                            <div class="tag-actions">
+                                <button class="btn btn-primary btn-small" onclick="openEditModal('${epc}')">
+                                    ✏️ Agregar Info
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                const badgeClass = producto.esMock ? 'badge-mock' : 'badge-edited';
+                const badgeText = producto.esMock ? 'Mock' : 'Editado';
+                
+                return `
+                    <div class="tag-item">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div class="tag-epc">${epc}</div>
+                            <span class="badge ${badgeClass}">${badgeText}</span>
+                        </div>
+                        <div class="tag-info">
+                            <div class="tag-info-item">
+                                <span class="tag-info-label">Descripción:</span>
+                                <span class="tag-info-value">${producto.descripcion || 'N/A'}</span>
+                            </div>
+                            <div class="tag-info-item">
+                                <span class="tag-info-label">Caducidad:</span>
+                                <span class="tag-info-value">${producto.caducidad ? new Date(producto.caducidad).toLocaleDateString('es-ES') : 'N/A'}</span>
+                            </div>
+                            <div class="tag-info-item">
+                                <span class="tag-info-label">Lote:</span>
+                                <span class="tag-info-value">${producto.lote || 'N/A'}</span>
+                            </div>
+                        </div>
+                        <div class="tag-actions">
+                            <button class="btn btn-primary btn-small" onclick="openEditModal('${epc}')">
+                                ✏️ Editar
+                            </button>
+                        </div>
+                    </div>
+                `;
+            })).then(html => html.join(''));
         }
         
         async function stopReading() {
@@ -433,8 +929,13 @@
                 addLog(`✅ Sesión detenida. Tags finales: ${final.epcCount}`, 'success');
                 updateStatus('stopped', `⏸️ Sesión detenida. ${final.epcCount} tags únicos detectados`);
                 
+                // Guardar nuevos EPCs antes de mostrar
+                if (final.epcs && final.epcs.length > 0) {
+                    await saveNewEpcs(final.epcs);
+                }
+                
                 // Mostrar tags finales
-                displayTags(final.epcs);
+                await displayTags(final.epcs);
                 document.getElementById('tagsCount').textContent = `${final.epcCount} tags únicos`;
                 
                 document.getElementById('startBtn').disabled = false;
@@ -454,8 +955,18 @@
                 stopReading();
             }
         });
-        
-        addLog('🚀 Aplicación iniciada', 'success');
+
+        // Inicializar aplicación
+        (async function() {
+            try {
+                await initDB();
+                addLog('💾 Base de datos inicializada', 'success');
+            } catch (error) {
+                console.error('Error al inicializar base de datos:', error);
+                addLog('⚠️ Error al inicializar base de datos', 'error');
+            }
+            addLog('🚀 Aplicación iniciada', 'success');
+        })();
     </script>
 </body>
 </html>

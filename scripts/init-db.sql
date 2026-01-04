@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS readers (
     is_connected BOOLEAN DEFAULT false,
     is_reading BOOLEAN DEFAULT false,
     last_seen TIMESTAMP,
+    intermittent_enabled BOOLEAN DEFAULT false,
+    read_duration_seconds INTEGER DEFAULT 5,
+    pause_duration_seconds INTEGER DEFAULT 5,
+    connected_antennas_count INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -25,6 +29,7 @@ CREATE TABLE IF NOT EXISTS antennas (
     enabled BOOLEAN DEFAULT true,
     tx_power_dbm DECIMAL(5,2),
     rx_sensitivity_dbm DECIMAL(5,2),
+    read_duration_seconds INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (reader_id) REFERENCES readers(id) ON DELETE CASCADE

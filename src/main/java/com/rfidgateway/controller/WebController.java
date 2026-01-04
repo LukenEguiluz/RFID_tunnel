@@ -166,6 +166,7 @@ public class WebController {
                 antenna.setId(readerId + "-antenna-" + antenna.getPortNumber());
             }
             antennaRepository.save(antenna);
+            updateConnectedAntennasCount(readerId);
             redirectAttributes.addFlashAttribute("success", "Antena creada exitosamente");
         } catch (Exception e) {
             log.error("Error al crear antena: {}", e.getMessage());
@@ -181,12 +182,27 @@ public class WebController {
                 .orElseThrow(() -> new RuntimeException("Antena no encontrada"));
             String readerId = antenna.getReaderId();
             antennaRepository.deleteById(id);
+            updateConnectedAntennasCount(readerId);
             redirectAttributes.addFlashAttribute("success", "Antena eliminada exitosamente");
             return "redirect:/readers/" + readerId + "/edit";
         } catch (Exception e) {
             log.error("Error al eliminar antena: {}", e.getMessage());
             redirectAttributes.addFlashAttribute("error", "Error al eliminar antena: " + e.getMessage());
             return "redirect:/readers";
+        }
+    }
+    
+    private void updateConnectedAntennasCount(String readerId) {
+        try {
+            Reader reader = readerRepository.findById(readerId).orElse(null);
+            if (reader != null) {
+                // Contar antenas habilitadas (enabled = true)
+                int count = antennaRepository.findByReaderIdAndEnabledTrue(readerId).size();
+                reader.setConnectedAntennasCount(count);
+                readerRepository.save(reader);
+            }
+        } catch (Exception e) {
+            log.error("Error al actualizar contador de antenas para lector {}: {}", readerId, e.getMessage());
         }
     }
     

@@ -51,6 +51,9 @@ public class Reader {
     @Column(name = "pause_duration_seconds")
     private Integer pauseDurationSeconds = 5; // Duración de pausa en segundos
     
+    @Column(name = "connected_antennas_count")
+    private Integer connectedAntennasCount = 0; // Cantidad de antenas conectadas al lector
+    
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
