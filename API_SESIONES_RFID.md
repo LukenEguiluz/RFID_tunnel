@@ -404,3 +404,5 @@ readTags('reader-1');
 | Consulta | Query a BD | Polling a API de sesión |
 | Uso | Monitoreo continuo | Lecturas bajo demanda |
 
+
+

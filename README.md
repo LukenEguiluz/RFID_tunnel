@@ -302,3 +302,5 @@ Este proyecto utiliza el SDK de Impinj que tiene su propia licencia. Ver archivo
 
 
 
+
+

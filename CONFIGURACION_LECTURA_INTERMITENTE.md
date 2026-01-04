@@ -225,3 +225,5 @@ curl -X POST http://localhost:8080/api/readers/LECTOR_ID/intermittent \
 curl -X POST http://localhost:8080/api/readers/LECTOR_ID/reset
 ```
 
+
+

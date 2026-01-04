@@ -6,3 +6,5 @@ public enum SessionStatus {
     COMPLETED  // Sesión completada automáticamente
 }
 
+
+

@@ -335,3 +335,5 @@ Si ya tienes código que usa `readerId`, puedes:
 2. **Migrar a grupos**: Crea grupos y usa `groupId` en su lugar
 3. **Ambos**: Puedes usar ambos según necesites
 
+
+

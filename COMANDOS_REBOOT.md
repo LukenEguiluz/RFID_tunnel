@@ -122,3 +122,5 @@ Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/readers/lector-1/
    GET /api/readers/{id}/status
    ```
 
+
+

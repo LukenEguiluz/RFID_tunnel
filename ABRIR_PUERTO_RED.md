@@ -190,3 +190,5 @@ O desde la interfaz gráfica:
 3. Busca "RFID Gateway"
 4. Click derecho → Eliminar
 
+
+

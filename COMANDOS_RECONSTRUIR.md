@@ -114,3 +114,5 @@ Después de obtener tu IP, actualiza la webapp:
 2. En el campo "URL del Gateway", ingresa: `http://TU_IP:8080`
 3. Ejemplo: `http://192.168.0.189:8080`
 
+
+

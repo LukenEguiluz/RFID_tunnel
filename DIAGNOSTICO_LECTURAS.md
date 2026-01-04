@@ -105,3 +105,5 @@ El gateway ahora sigue el mismo orden.
 4. **Comparar con el ejemplo** que funciona
 5. **Reportar los logs** si el problema persiste
 
+
+

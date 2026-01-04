@@ -56,3 +56,5 @@ docker-compose down
 - Los tags se ordenan alfabéticamente
 - El log muestra todos los eventos importantes
 
+
+
