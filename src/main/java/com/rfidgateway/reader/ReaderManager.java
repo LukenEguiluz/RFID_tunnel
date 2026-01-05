@@ -111,11 +111,18 @@ public class ReaderManager {
                     antennaConfig.setEnabled(true);
                     
                     // Configurar potencia
+                    // Si useDefaultPower está activado, siempre usar la potencia general (ignorar potencia individual)
                     if (readerConfig.getUseDefaultPower() != null && readerConfig.getUseDefaultPower() 
                         && readerConfig.getDefaultTxPowerDbm() != null) {
-                        // Usar potencia por defecto del lector
+                        // Usar potencia por defecto del lector (forzar para todas las antenas)
                         antennaConfig.setIsMaxTxPower(false);
-                        antennaConfig.setTxPowerinDbm(readerConfig.getDefaultTxPowerDbm());
+                        double power = readerConfig.getDefaultTxPowerDbm();
+                        // Verificar límite máximo si está configurado
+                        if (readerConfig.getMaxTxPowerDbm() != null) {
+                            power = Math.min(power, readerConfig.getMaxTxPowerDbm());
+                        }
+                        antennaConfig.setTxPowerinDbm(power);
+                        log.debug("Usando potencia general del lector (forzada): {} dBm", power);
                     } else if (antenna.getTxPowerDbm() != null) {
                         // Usar potencia individual de la antena
                         antennaConfig.setIsMaxTxPower(false);
@@ -127,12 +134,20 @@ public class ReaderManager {
                         } else {
                             antennaConfig.setTxPowerinDbm(antenna.getTxPowerDbm());
                         }
+                    } else if (readerConfig.getDefaultTxPowerDbm() != null) {
+                        // Si no hay potencia individual pero hay potencia general configurada, usarla
+                        antennaConfig.setIsMaxTxPower(false);
+                        double power = readerConfig.getDefaultTxPowerDbm();
+                        // Verificar límite máximo si está configurado
+                        if (readerConfig.getMaxTxPowerDbm() != null) {
+                            power = Math.min(power, readerConfig.getMaxTxPowerDbm());
+                        }
+                        antennaConfig.setTxPowerinDbm(power);
+                        log.debug("Usando potencia general del lector: {} dBm", power);
                     } else {
                         // Usar valor por defecto para túnel de RFID (no máximo)
                         antennaConfig.setIsMaxTxPower(false);
-                        double defaultPower = readerConfig.getDefaultTxPowerDbm() != null 
-                            ? readerConfig.getDefaultTxPowerDbm() 
-                            : DEFAULT_TUNNEL_TX_POWER_DBM;
+                        double defaultPower = DEFAULT_TUNNEL_TX_POWER_DBM;
                         // Verificar límite máximo si está configurado
                         if (readerConfig.getMaxTxPowerDbm() != null) {
                             defaultPower = Math.min(defaultPower, readerConfig.getMaxTxPowerDbm());
@@ -419,11 +434,19 @@ public class ReaderManager {
                     antennaConfig.setEnabled(true);
                     
                     // Configurar potencia
+                    // Si useDefaultPower está activado, siempre usar la potencia general (ignorar potencia individual)
                     if (readerConfig.getUseDefaultPower() != null && readerConfig.getUseDefaultPower() 
                         && readerConfig.getDefaultTxPowerDbm() != null) {
+                        // Usar potencia por defecto del lector (forzar para todas las antenas)
                         antennaConfig.setIsMaxTxPower(false);
-                        antennaConfig.setTxPowerinDbm(readerConfig.getDefaultTxPowerDbm());
+                        double power = readerConfig.getDefaultTxPowerDbm();
+                        // Verificar límite máximo si está configurado
+                        if (readerConfig.getMaxTxPowerDbm() != null) {
+                            power = Math.min(power, readerConfig.getMaxTxPowerDbm());
+                        }
+                        antennaConfig.setTxPowerinDbm(power);
                     } else if (antenna.getTxPowerDbm() != null) {
+                        // Usar potencia individual de la antena
                         antennaConfig.setIsMaxTxPower(false);
                         if (readerConfig.getMaxTxPowerDbm() != null) {
                             double power = Math.min(antenna.getTxPowerDbm(), readerConfig.getMaxTxPowerDbm());
@@ -431,12 +454,19 @@ public class ReaderManager {
                         } else {
                             antennaConfig.setTxPowerinDbm(antenna.getTxPowerDbm());
                         }
+                    } else if (readerConfig.getDefaultTxPowerDbm() != null) {
+                        // Si no hay potencia individual pero hay potencia general configurada, usarla
+                        antennaConfig.setIsMaxTxPower(false);
+                        double power = readerConfig.getDefaultTxPowerDbm();
+                        // Verificar límite máximo si está configurado
+                        if (readerConfig.getMaxTxPowerDbm() != null) {
+                            power = Math.min(power, readerConfig.getMaxTxPowerDbm());
+                        }
+                        antennaConfig.setTxPowerinDbm(power);
                     } else {
                         // Usar valor por defecto para túnel de RFID (no máximo)
                         antennaConfig.setIsMaxTxPower(false);
-                        double defaultPower = readerConfig.getDefaultTxPowerDbm() != null 
-                            ? readerConfig.getDefaultTxPowerDbm() 
-                            : DEFAULT_TUNNEL_TX_POWER_DBM;
+                        double defaultPower = DEFAULT_TUNNEL_TX_POWER_DBM;
                         // Verificar límite máximo si está configurado
                         if (readerConfig.getMaxTxPowerDbm() != null) {
                             defaultPower = Math.min(defaultPower, readerConfig.getMaxTxPowerDbm());
