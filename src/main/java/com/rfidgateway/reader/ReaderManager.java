@@ -273,9 +273,63 @@ public class ReaderManager {
      * @param readerId ID del lector
      */
     public void rebootReader(String readerId) {
-        log.info("Reiniciando completamente lector {}", readerId);
-        // Por ahora, simplemente reconectamos
-        resetReader(readerId);
+        log.info("Iniciando reboot completo del lector {}", readerId);
+        
+        try {
+            // Obtener configuración del lector
+            Reader readerConfig = readerRepository.findById(readerId).orElse(null);
+            if (readerConfig == null) {
+                log.error("Lector {} no encontrado para reboot", readerId);
+                return;
+            }
+            
+            // Detener lectura si está activa
+            ImpinjReader reader = readers.get(readerId);
+            if (reader != null && reader.isConnected()) {
+                try {
+                    // Detener lectura primero
+                    if (readerConfig.getIsReading() != null && readerConfig.getIsReading()) {
+                        reader.stop();
+                        log.info("Lectura detenida antes del reboot para lector {}", readerId);
+                    }
+                    
+                    // Intentar hacer reboot del lector físico usando el SDK
+                    // Nota: El SDK de Octane no tiene un método directo de reboot,
+                    // así que desconectamos y esperamos más tiempo para que el lector se reinicie
+                    log.info("Desconectando lector {} para reboot", readerId);
+                    reader.disconnect();
+                    
+                } catch (OctaneSdkException e) {
+                    log.warn("Error al desconectar lector {} antes del reboot: {}", readerId, e.getMessage());
+                }
+            }
+            
+            // Limpiar instancia
+            readers.remove(readerId);
+            
+            // Actualizar estado en BD
+            readerConfig.setIsConnected(false);
+            readerConfig.setIsReading(false);
+            readerRepository.save(readerConfig);
+            
+            // Esperar 5 segundos para que el lector se reinicie completamente
+            log.info("Esperando 5 segundos para que el lector {} se reinicie...", readerId);
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Espera interrumpida durante reboot del lector {}", readerId);
+            }
+            
+            // Reconectar el lector
+            log.info("Reconectando lector {} después del reboot", readerId);
+            connectReader(readerConfig);
+            
+            log.info("Reboot completado para lector {}", readerId);
+            
+        } catch (Exception e) {
+            log.error("Error durante reboot del lector {}: {}", readerId, e.getMessage(), e);
+        }
     }
     
     /**
