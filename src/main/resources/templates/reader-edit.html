@@ -177,7 +177,7 @@
             <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
             <div th:if="${error}" class="alert alert-error" th:text="${error}"></div>
             
-            <form th:action="@{/readers/{id}(id=${reader.id})}" method="post" th:object="${reader}">
+            <form th:action="@{/readers/{id}(id=${reader.id})}" method="post" th:object="${reader}" id="readerForm" onsubmit="syncPowerValues()">
                 <div class="form-group">
                     <label>ID del Lector</label>
                     <input type="text" th:value="${reader.id}" disabled>
@@ -249,7 +249,7 @@
                     <select id="defaultTxPowerDbm" style="max-width: 200px;">
                         <option value="">Usar Máxima Potencia</option>
                     </select>
-                    <input type="hidden" th:field="*{defaultTxPowerDbm}" id="defaultTxPowerDbm-hidden" name="defaultTxPowerDbm">
+                    <input type="hidden" th:field="*{defaultTxPowerDbm}" id="defaultTxPowerDbm-hidden">
                     <div class="help-text">Potencia de transmisión por defecto para todas las antenas según SDK Octane (10.0 - 32.5 dBm en incrementos de 0.5 dBm).</div>
                 </div>
                 
@@ -258,7 +258,7 @@
                     <select id="maxTxPowerDbm" style="max-width: 200px;">
                         <option value="">Sin Límite</option>
                     </select>
-                    <input type="hidden" th:field="*{maxTxPowerDbm}" id="maxTxPowerDbm-hidden" name="maxTxPowerDbm">
+                    <input type="hidden" th:field="*{maxTxPowerDbm}" id="maxTxPowerDbm-hidden">
                     <div class="help-text">Límite máximo de potencia permitida según SDK Octane (10.0 - 32.5 dBm en incrementos de 0.5 dBm).</div>
                 </div>
                 
@@ -413,10 +413,35 @@
         </div>
     </div>
     <script>
+        // Función para sincronizar valores antes de enviar el formulario
+        function syncPowerValues() {
+            const defaultSelect = document.getElementById('defaultTxPowerDbm');
+            const defaultHidden = document.getElementById('defaultTxPowerDbm-hidden');
+            const maxSelect = document.getElementById('maxTxPowerDbm');
+            const maxHidden = document.getElementById('maxTxPowerDbm-hidden');
+            
+            if (defaultSelect && defaultHidden) {
+                defaultHidden.value = defaultSelect.value || '';
+                console.log('Sincronizando defaultTxPowerDbm:', defaultHidden.value);
+            }
+            
+            if (maxSelect && maxHidden) {
+                maxHidden.value = maxSelect.value || '';
+                console.log('Sincronizando maxTxPowerDbm:', maxHidden.value);
+            }
+            
+            return true; // Continuar con el envío del formulario
+        }
+        
         // Generar opciones de potencia TX (10.0 a 32.5 dBm en incrementos de 0.5)
         function generateTxPowerOptions(selectId, hiddenId, currentValue) {
             const select = document.getElementById(selectId);
             const hidden = document.getElementById(hiddenId);
+            
+            if (!select || !hidden) {
+                console.error('No se encontraron elementos:', selectId, hiddenId);
+                return;
+            }
             
             // Limpiar opciones existentes (excepto la primera)
             while (select.options.length > 1) {
@@ -435,7 +460,8 @@
             if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
                 const powerValue = parseFloat(currentValue);
                 if (!isNaN(powerValue)) {
-                    hidden.value = powerValue.toFixed(1);
+                    const powerStr = powerValue.toFixed(1);
+                    hidden.value = powerStr;
                     // Seleccionar la opción correspondiente
                     for (let option of select.options) {
                         if (option.value && Math.abs(parseFloat(option.value) - powerValue) < 0.01) {
@@ -443,18 +469,21 @@
                             break;
                         }
                     }
+                    console.log('Valor inicial establecido para', selectId, ':', powerStr);
                 } else {
                     hidden.value = '';
+                    select.options[0].selected = true;
                 }
             } else {
                 hidden.value = '';
+                select.options[0].selected = true;
             }
             
             // Sincronizar cambios del select con el hidden input
             select.addEventListener('change', function() {
                 const value = this.value || '';
                 hidden.value = value;
-                console.log('Potencia cambiada:', selectId, '=', value);
+                console.log('Potencia cambiada:', selectId, '=', value, '-> hidden:', hidden.value);
             });
         }
         
@@ -462,6 +491,8 @@
         window.addEventListener('DOMContentLoaded', function() {
             const defaultTxPower = /*[[${reader.defaultTxPowerDbm}]]*/ null;
             const maxTxPower = /*[[${reader.maxTxPowerDbm}]]*/ null;
+            
+            console.log('Valores iniciales - defaultTxPower:', defaultTxPower, 'maxTxPower:', maxTxPower);
             
             generateTxPowerOptions('defaultTxPowerDbm', 'defaultTxPowerDbm-hidden', defaultTxPower);
             generateTxPowerOptions('maxTxPowerDbm', 'maxTxPowerDbm-hidden', maxTxPower);

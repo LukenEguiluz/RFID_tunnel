@@ -111,6 +111,9 @@ public class WebController {
             Reader existing = readerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Lector no encontrado"));
             
+            log.info("Recibiendo actualización para lector {}: defaultTxPowerDbm={}, maxTxPowerDbm={}, useDefaultPower={}", 
+                id, reader.getDefaultTxPowerDbm(), reader.getMaxTxPowerDbm(), reader.getUseDefaultPower());
+            
             existing.setName(reader.getName());
             existing.setHostname(reader.getHostname());
             existing.setEnabled(reader.getEnabled());
@@ -129,20 +132,24 @@ public class WebController {
             Double defaultPower = reader.getDefaultTxPowerDbm();
             if (defaultPower != null && defaultPower > 0) {
                 existing.setDefaultTxPowerDbm(defaultPower);
+                log.info("Estableciendo defaultTxPowerDbm = {}", defaultPower);
             } else {
                 existing.setDefaultTxPowerDbm(null);
+                log.info("Estableciendo defaultTxPowerDbm = null");
             }
             
             Double maxPower = reader.getMaxTxPowerDbm();
             if (maxPower != null && maxPower > 0) {
                 existing.setMaxTxPowerDbm(maxPower);
+                log.info("Estableciendo maxTxPowerDbm = {}", maxPower);
             } else {
                 existing.setMaxTxPowerDbm(null);
+                log.info("Estableciendo maxTxPowerDbm = null");
             }
             
             existing.setUseDefaultPower(reader.getUseDefaultPower() != null ? reader.getUseDefaultPower() : false);
             
-            log.info("Actualizando configuración de potencia para lector {}: defaultTxPowerDbm={}, maxTxPowerDbm={}, useDefaultPower={}", 
+            log.info("Guardando configuración de potencia para lector {}: defaultTxPowerDbm={}, maxTxPowerDbm={}, useDefaultPower={}", 
                 id, existing.getDefaultTxPowerDbm(), existing.getMaxTxPowerDbm(), existing.getUseDefaultPower());
             
             // Actualizar configuración de sensibilidad
