@@ -110,70 +110,64 @@ public class ReaderManager {
                 if (antennaConfig != null) {
                     antennaConfig.setEnabled(true);
                     
-                    // Configurar potencia
+                    // Configurar potencia - NUNCA usar potencia máxima, siempre establecer un valor numérico
+                    // Según SDK Octane, siempre debemos establecer setIsMaxTxPower(false) y un valor específico
+                    double powerToUse;
+                    
                     // Si useDefaultPower está activado, siempre usar la potencia general (ignorar potencia individual)
                     if (readerConfig.getUseDefaultPower() != null && readerConfig.getUseDefaultPower() 
                         && readerConfig.getDefaultTxPowerDbm() != null) {
                         // Usar potencia por defecto del lector (forzar para todas las antenas)
-                        antennaConfig.setIsMaxTxPower(false);
-                        double power = readerConfig.getDefaultTxPowerDbm();
-                        // Verificar límite máximo si está configurado
-                        if (readerConfig.getMaxTxPowerDbm() != null) {
-                            power = Math.min(power, readerConfig.getMaxTxPowerDbm());
-                        }
-                        antennaConfig.setTxPowerinDbm(power);
-                        log.debug("Usando potencia general del lector (forzada): {} dBm", power);
+                        powerToUse = readerConfig.getDefaultTxPowerDbm();
+                        log.debug("Usando potencia general del lector (forzada): {} dBm", powerToUse);
                     } else if (antenna.getTxPowerDbm() != null) {
                         // Usar potencia individual de la antena
-                        antennaConfig.setIsMaxTxPower(false);
-                        
-                        // Verificar límite máximo si está configurado
-                        if (readerConfig.getMaxTxPowerDbm() != null) {
-                            double power = Math.min(antenna.getTxPowerDbm(), readerConfig.getMaxTxPowerDbm());
-                            antennaConfig.setTxPowerinDbm(power);
-                        } else {
-                            antennaConfig.setTxPowerinDbm(antenna.getTxPowerDbm());
-                        }
+                        powerToUse = antenna.getTxPowerDbm();
+                        log.debug("Usando potencia individual de antena: {} dBm", powerToUse);
                     } else if (readerConfig.getDefaultTxPowerDbm() != null) {
                         // Si no hay potencia individual pero hay potencia general configurada, usarla
-                        antennaConfig.setIsMaxTxPower(false);
-                        double power = readerConfig.getDefaultTxPowerDbm();
-                        // Verificar límite máximo si está configurado
-                        if (readerConfig.getMaxTxPowerDbm() != null) {
-                            power = Math.min(power, readerConfig.getMaxTxPowerDbm());
-                        }
-                        antennaConfig.setTxPowerinDbm(power);
-                        log.debug("Usando potencia general del lector: {} dBm", power);
+                        powerToUse = readerConfig.getDefaultTxPowerDbm();
+                        log.debug("Usando potencia general del lector: {} dBm", powerToUse);
                     } else {
-                        // Usar valor por defecto para túnel de RFID (no máximo)
-                        antennaConfig.setIsMaxTxPower(false);
-                        double defaultPower = DEFAULT_TUNNEL_TX_POWER_DBM;
-                        // Verificar límite máximo si está configurado
-                        if (readerConfig.getMaxTxPowerDbm() != null) {
-                            defaultPower = Math.min(defaultPower, readerConfig.getMaxTxPowerDbm());
-                        }
-                        antennaConfig.setTxPowerinDbm(defaultPower);
-                        log.debug("Usando potencia por defecto para túnel: {} dBm", defaultPower);
+                        // Usar valor por defecto para túnel de RFID según SDK (nunca máximo)
+                        powerToUse = DEFAULT_TUNNEL_TX_POWER_DBM;
+                        log.debug("Usando potencia por defecto para túnel: {} dBm", powerToUse);
                     }
                     
-                    // Configurar sensibilidad
+                    // Verificar límite máximo si está configurado
+                    if (readerConfig.getMaxTxPowerDbm() != null) {
+                        powerToUse = Math.min(powerToUse, readerConfig.getMaxTxPowerDbm());
+                    }
+                    
+                    // SIEMPRE establecer potencia numérica, NUNCA usar máxima
+                    antennaConfig.setIsMaxTxPower(false);
+                    antennaConfig.setTxPowerinDbm(powerToUse);
+                    log.info("Antena {} puerto {} configurada con potencia: {} dBm (NO máxima)", 
+                        antenna.getId(), portNumber, powerToUse);
+                    
+                    // Configurar sensibilidad - NUNCA usar sensibilidad máxima, siempre establecer un valor numérico
+                    // Según SDK Octane, siempre debemos establecer setIsMaxRxSensitivity(false) y un valor específico
+                    double sensitivityToUse;
+                    
                     if (readerConfig.getDefaultRxSensitivityDbm() != null) {
                         // Usar sensibilidad por defecto del lector
-                        antennaConfig.setIsMaxRxSensitivity(false);
-                        antennaConfig.setRxSensitivityinDbm(readerConfig.getDefaultRxSensitivityDbm());
+                        sensitivityToUse = readerConfig.getDefaultRxSensitivityDbm();
+                        log.debug("Usando sensibilidad general del lector: {} dBm", sensitivityToUse);
                     } else if (antenna.getRxSensitivityDbm() != null) {
                         // Usar sensibilidad individual de la antena
-                        antennaConfig.setIsMaxRxSensitivity(false);
-                        antennaConfig.setRxSensitivityinDbm(antenna.getRxSensitivityDbm());
+                        sensitivityToUse = antenna.getRxSensitivityDbm();
+                        log.debug("Usando sensibilidad individual de antena: {} dBm", sensitivityToUse);
                     } else {
-                        // Usar valor por defecto para túnel de RFID (no máxima)
-                        antennaConfig.setIsMaxRxSensitivity(false);
-                        double defaultSensitivity = readerConfig.getDefaultRxSensitivityDbm() != null 
-                            ? readerConfig.getDefaultRxSensitivityDbm() 
-                            : DEFAULT_TUNNEL_RX_SENSITIVITY_DBM;
-                        antennaConfig.setRxSensitivityinDbm(defaultSensitivity);
-                        log.debug("Usando sensibilidad por defecto para túnel: {} dBm", defaultSensitivity);
+                        // Usar valor por defecto para túnel de RFID según SDK (nunca máxima)
+                        sensitivityToUse = DEFAULT_TUNNEL_RX_SENSITIVITY_DBM;
+                        log.debug("Usando sensibilidad por defecto para túnel: {} dBm", sensitivityToUse);
                     }
+                    
+                    // SIEMPRE establecer sensibilidad numérica, NUNCA usar máxima
+                    antennaConfig.setIsMaxRxSensitivity(false);
+                    antennaConfig.setRxSensitivityinDbm(sensitivityToUse);
+                    log.info("Antena {} puerto {} configurada con sensibilidad: {} dBm (NO máxima)", 
+                        antenna.getId(), portNumber, sensitivityToUse);
                     
                     log.debug("Antena {} configurada para lector {} - Puerto: {}, Potencia: {}, Sensibilidad: {}", 
                         antenna.getId(), readerId, portNumber,
@@ -433,62 +427,52 @@ public class ReaderManager {
                 if (antennaConfig != null) {
                     antennaConfig.setEnabled(true);
                     
-                    // Configurar potencia
+                    // Configurar potencia - NUNCA usar potencia máxima, siempre establecer un valor numérico
+                    // Según SDK Octane, siempre debemos establecer setIsMaxTxPower(false) y un valor específico
+                    double powerToUse;
+                    
                     // Si useDefaultPower está activado, siempre usar la potencia general (ignorar potencia individual)
                     if (readerConfig.getUseDefaultPower() != null && readerConfig.getUseDefaultPower() 
                         && readerConfig.getDefaultTxPowerDbm() != null) {
                         // Usar potencia por defecto del lector (forzar para todas las antenas)
-                        antennaConfig.setIsMaxTxPower(false);
-                        double power = readerConfig.getDefaultTxPowerDbm();
-                        // Verificar límite máximo si está configurado
-                        if (readerConfig.getMaxTxPowerDbm() != null) {
-                            power = Math.min(power, readerConfig.getMaxTxPowerDbm());
-                        }
-                        antennaConfig.setTxPowerinDbm(power);
+                        powerToUse = readerConfig.getDefaultTxPowerDbm();
                     } else if (antenna.getTxPowerDbm() != null) {
                         // Usar potencia individual de la antena
-                        antennaConfig.setIsMaxTxPower(false);
-                        if (readerConfig.getMaxTxPowerDbm() != null) {
-                            double power = Math.min(antenna.getTxPowerDbm(), readerConfig.getMaxTxPowerDbm());
-                            antennaConfig.setTxPowerinDbm(power);
-                        } else {
-                            antennaConfig.setTxPowerinDbm(antenna.getTxPowerDbm());
-                        }
+                        powerToUse = antenna.getTxPowerDbm();
                     } else if (readerConfig.getDefaultTxPowerDbm() != null) {
                         // Si no hay potencia individual pero hay potencia general configurada, usarla
-                        antennaConfig.setIsMaxTxPower(false);
-                        double power = readerConfig.getDefaultTxPowerDbm();
-                        // Verificar límite máximo si está configurado
-                        if (readerConfig.getMaxTxPowerDbm() != null) {
-                            power = Math.min(power, readerConfig.getMaxTxPowerDbm());
-                        }
-                        antennaConfig.setTxPowerinDbm(power);
+                        powerToUse = readerConfig.getDefaultTxPowerDbm();
                     } else {
-                        // Usar valor por defecto para túnel de RFID (no máximo)
-                        antennaConfig.setIsMaxTxPower(false);
-                        double defaultPower = DEFAULT_TUNNEL_TX_POWER_DBM;
-                        // Verificar límite máximo si está configurado
-                        if (readerConfig.getMaxTxPowerDbm() != null) {
-                            defaultPower = Math.min(defaultPower, readerConfig.getMaxTxPowerDbm());
-                        }
-                        antennaConfig.setTxPowerinDbm(defaultPower);
+                        // Usar valor por defecto para túnel de RFID según SDK (nunca máximo)
+                        powerToUse = DEFAULT_TUNNEL_TX_POWER_DBM;
                     }
                     
-                    // Configurar sensibilidad
-                    if (readerConfig.getDefaultRxSensitivityDbm() != null) {
-                        antennaConfig.setIsMaxRxSensitivity(false);
-                        antennaConfig.setRxSensitivityinDbm(readerConfig.getDefaultRxSensitivityDbm());
-                    } else if (antenna.getRxSensitivityDbm() != null) {
-                        antennaConfig.setIsMaxRxSensitivity(false);
-                        antennaConfig.setRxSensitivityinDbm(antenna.getRxSensitivityDbm());
-                    } else {
-                        // Usar valor por defecto para túnel de RFID (no máxima)
-                        antennaConfig.setIsMaxRxSensitivity(false);
-                        double defaultSensitivity = readerConfig.getDefaultRxSensitivityDbm() != null 
-                            ? readerConfig.getDefaultRxSensitivityDbm() 
-                            : DEFAULT_TUNNEL_RX_SENSITIVITY_DBM;
-                        antennaConfig.setRxSensitivityinDbm(defaultSensitivity);
+                    // Verificar límite máximo si está configurado
+                    if (readerConfig.getMaxTxPowerDbm() != null) {
+                        powerToUse = Math.min(powerToUse, readerConfig.getMaxTxPowerDbm());
                     }
+                    
+                    // SIEMPRE establecer potencia numérica, NUNCA usar máxima
+                    antennaConfig.setIsMaxTxPower(false);
+                    antennaConfig.setTxPowerinDbm(powerToUse);
+                    
+                    // Configurar sensibilidad - NUNCA usar sensibilidad máxima, siempre establecer un valor numérico
+                    double sensitivityToUse;
+                    
+                    if (readerConfig.getDefaultRxSensitivityDbm() != null) {
+                        // Usar sensibilidad por defecto del lector
+                        sensitivityToUse = readerConfig.getDefaultRxSensitivityDbm();
+                    } else if (antenna.getRxSensitivityDbm() != null) {
+                        // Usar sensibilidad individual de la antena
+                        sensitivityToUse = antenna.getRxSensitivityDbm();
+                    } else {
+                        // Usar valor por defecto para túnel de RFID según SDK (nunca máxima)
+                        sensitivityToUse = DEFAULT_TUNNEL_RX_SENSITIVITY_DBM;
+                    }
+                    
+                    // SIEMPRE establecer sensibilidad numérica, NUNCA usar máxima
+                    antennaConfig.setIsMaxRxSensitivity(false);
+                    antennaConfig.setRxSensitivityinDbm(sensitivityToUse);
                 }
             }
             
