@@ -246,19 +246,19 @@
                 
                 <div class="form-group">
                     <label for="defaultTxPowerDbm">Potencia por Defecto (dBm)</label>
-                    <select id="defaultTxPowerDbm" name="defaultTxPowerDbm" style="max-width: 200px;">
+                    <select id="defaultTxPowerDbm" style="max-width: 200px;">
                         <option value="">Usar Máxima Potencia</option>
                     </select>
-                    <input type="hidden" th:field="*{defaultTxPowerDbm}" id="defaultTxPowerDbm-hidden">
+                    <input type="hidden" th:field="*{defaultTxPowerDbm}" id="defaultTxPowerDbm-hidden" name="defaultTxPowerDbm">
                     <div class="help-text">Potencia de transmisión por defecto para todas las antenas según SDK Octane (10.0 - 32.5 dBm en incrementos de 0.5 dBm).</div>
                 </div>
                 
                 <div class="form-group">
                     <label for="maxTxPowerDbm">Potencia Máxima (dBm)</label>
-                    <select id="maxTxPowerDbm" name="maxTxPowerDbm" style="max-width: 200px;">
+                    <select id="maxTxPowerDbm" style="max-width: 200px;">
                         <option value="">Sin Límite</option>
                     </select>
-                    <input type="hidden" th:field="*{maxTxPowerDbm}" id="maxTxPowerDbm-hidden">
+                    <input type="hidden" th:field="*{maxTxPowerDbm}" id="maxTxPowerDbm-hidden" name="maxTxPowerDbm">
                     <div class="help-text">Límite máximo de potencia permitida según SDK Octane (10.0 - 32.5 dBm en incrementos de 0.5 dBm).</div>
                 </div>
                 
@@ -418,28 +418,54 @@
             const select = document.getElementById(selectId);
             const hidden = document.getElementById(hiddenId);
             
+            // Limpiar opciones existentes (excepto la primera)
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            // Generar opciones
             for (let power = 10.0; power <= 32.5; power += 0.5) {
                 const option = document.createElement('option');
-                option.value = power.toString();
-                option.textContent = power + ' dBm';
-                if (currentValue !== null && Math.abs(parseFloat(currentValue) - power) < 0.01) {
-                    option.selected = true;
-                }
+                option.value = power.toFixed(1);
+                option.textContent = power.toFixed(1) + ' dBm';
                 select.appendChild(option);
+            }
+            
+            // Establecer el valor inicial del hidden input si hay un valor actual
+            if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+                const powerValue = parseFloat(currentValue);
+                if (!isNaN(powerValue)) {
+                    hidden.value = powerValue.toFixed(1);
+                    // Seleccionar la opción correspondiente
+                    for (let option of select.options) {
+                        if (option.value && Math.abs(parseFloat(option.value) - powerValue) < 0.01) {
+                            option.selected = true;
+                            break;
+                        }
+                    }
+                } else {
+                    hidden.value = '';
+                }
+            } else {
+                hidden.value = '';
             }
             
             // Sincronizar cambios del select con el hidden input
             select.addEventListener('change', function() {
-                hidden.value = this.value || '';
+                const value = this.value || '';
+                hidden.value = value;
+                console.log('Potencia cambiada:', selectId, '=', value);
             });
         }
         
-        // Generar opciones para los selects de potencia
-        const defaultTxPower = /*[[${reader.defaultTxPowerDbm}]]*/ null;
-        const maxTxPower = /*[[${reader.maxTxPowerDbm}]]*/ null;
-        
-        generateTxPowerOptions('defaultTxPowerDbm', 'defaultTxPowerDbm-hidden', defaultTxPower);
-        generateTxPowerOptions('maxTxPowerDbm', 'maxTxPowerDbm-hidden', maxTxPower);
+        // Generar opciones para los selects de potencia cuando la página esté cargada
+        window.addEventListener('DOMContentLoaded', function() {
+            const defaultTxPower = /*[[${reader.defaultTxPowerDbm}]]*/ null;
+            const maxTxPower = /*[[${reader.maxTxPowerDbm}]]*/ null;
+            
+            generateTxPowerOptions('defaultTxPowerDbm', 'defaultTxPowerDbm-hidden', defaultTxPower);
+            generateTxPowerOptions('maxTxPowerDbm', 'maxTxPowerDbm-hidden', maxTxPower);
+        });
     </script>
 </body>
 </html>

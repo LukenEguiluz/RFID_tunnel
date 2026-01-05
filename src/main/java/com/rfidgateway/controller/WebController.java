@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
@@ -29,6 +30,12 @@ public class WebController {
     
     @Autowired
     private com.rfidgateway.repository.ReaderGroupRepository groupRepository;
+    
+    @InitBinder
+    public void initBinder(WebDataBinder binder) {
+        // Permitir campos vacíos para valores Double
+        binder.setAutoGrowNestedPaths(true);
+    }
     
     @GetMapping("/")
     public String index(Model model) {
@@ -118,9 +125,25 @@ public class WebController {
             }
             
             // Actualizar configuración de potencia
-            existing.setDefaultTxPowerDbm(reader.getDefaultTxPowerDbm());
-            existing.setMaxTxPowerDbm(reader.getMaxTxPowerDbm());
-            existing.setUseDefaultPower(reader.getUseDefaultPower());
+            // Manejar valores vacíos como null (Spring puede enviar strings vacíos)
+            Double defaultPower = reader.getDefaultTxPowerDbm();
+            if (defaultPower != null && defaultPower > 0) {
+                existing.setDefaultTxPowerDbm(defaultPower);
+            } else {
+                existing.setDefaultTxPowerDbm(null);
+            }
+            
+            Double maxPower = reader.getMaxTxPowerDbm();
+            if (maxPower != null && maxPower > 0) {
+                existing.setMaxTxPowerDbm(maxPower);
+            } else {
+                existing.setMaxTxPowerDbm(null);
+            }
+            
+            existing.setUseDefaultPower(reader.getUseDefaultPower() != null ? reader.getUseDefaultPower() : false);
+            
+            log.info("Actualizando configuración de potencia para lector {}: defaultTxPowerDbm={}, maxTxPowerDbm={}, useDefaultPower={}", 
+                id, existing.getDefaultTxPowerDbm(), existing.getMaxTxPowerDbm(), existing.getUseDefaultPower());
             
             // Actualizar configuración de sensibilidad
             existing.setDefaultRxSensitivityDbm(reader.getDefaultRxSensitivityDbm());
