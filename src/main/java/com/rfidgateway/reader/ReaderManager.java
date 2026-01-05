@@ -21,6 +21,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class ReaderManager {
     
+    // Valores por defecto ideales para un túnel de RFID
+    private static final double DEFAULT_TUNNEL_TX_POWER_DBM = 28.0; // Potencia óptima para túnel (no máxima)
+    private static final double DEFAULT_TUNNEL_RX_SENSITIVITY_DBM = -70.0; // Sensibilidad óptima para túnel (no máxima)
+    
     @Autowired
     private ReaderRepository readerRepository;
     
@@ -124,8 +128,17 @@ public class ReaderManager {
                             antennaConfig.setTxPowerinDbm(antenna.getTxPowerDbm());
                         }
                     } else {
-                        // Usar potencia máxima
-                        antennaConfig.setIsMaxTxPower(true);
+                        // Usar valor por defecto para túnel de RFID (no máximo)
+                        antennaConfig.setIsMaxTxPower(false);
+                        double defaultPower = readerConfig.getDefaultTxPowerDbm() != null 
+                            ? readerConfig.getDefaultTxPowerDbm() 
+                            : DEFAULT_TUNNEL_TX_POWER_DBM;
+                        // Verificar límite máximo si está configurado
+                        if (readerConfig.getMaxTxPowerDbm() != null) {
+                            defaultPower = Math.min(defaultPower, readerConfig.getMaxTxPowerDbm());
+                        }
+                        antennaConfig.setTxPowerinDbm(defaultPower);
+                        log.debug("Usando potencia por defecto para túnel: {} dBm", defaultPower);
                     }
                     
                     // Configurar sensibilidad
@@ -138,8 +151,13 @@ public class ReaderManager {
                         antennaConfig.setIsMaxRxSensitivity(false);
                         antennaConfig.setRxSensitivityinDbm(antenna.getRxSensitivityDbm());
                     } else {
-                        // Usar sensibilidad máxima
-                        antennaConfig.setIsMaxRxSensitivity(true);
+                        // Usar valor por defecto para túnel de RFID (no máxima)
+                        antennaConfig.setIsMaxRxSensitivity(false);
+                        double defaultSensitivity = readerConfig.getDefaultRxSensitivityDbm() != null 
+                            ? readerConfig.getDefaultRxSensitivityDbm() 
+                            : DEFAULT_TUNNEL_RX_SENSITIVITY_DBM;
+                        antennaConfig.setRxSensitivityinDbm(defaultSensitivity);
+                        log.debug("Usando sensibilidad por defecto para túnel: {} dBm", defaultSensitivity);
                     }
                     
                     log.debug("Antena {} configurada para lector {} - Puerto: {}, Potencia: {}, Sensibilidad: {}", 
@@ -414,7 +432,16 @@ public class ReaderManager {
                             antennaConfig.setTxPowerinDbm(antenna.getTxPowerDbm());
                         }
                     } else {
-                        antennaConfig.setIsMaxTxPower(true);
+                        // Usar valor por defecto para túnel de RFID (no máximo)
+                        antennaConfig.setIsMaxTxPower(false);
+                        double defaultPower = readerConfig.getDefaultTxPowerDbm() != null 
+                            ? readerConfig.getDefaultTxPowerDbm() 
+                            : DEFAULT_TUNNEL_TX_POWER_DBM;
+                        // Verificar límite máximo si está configurado
+                        if (readerConfig.getMaxTxPowerDbm() != null) {
+                            defaultPower = Math.min(defaultPower, readerConfig.getMaxTxPowerDbm());
+                        }
+                        antennaConfig.setTxPowerinDbm(defaultPower);
                     }
                     
                     // Configurar sensibilidad
@@ -425,7 +452,12 @@ public class ReaderManager {
                         antennaConfig.setIsMaxRxSensitivity(false);
                         antennaConfig.setRxSensitivityinDbm(antenna.getRxSensitivityDbm());
                     } else {
-                        antennaConfig.setIsMaxRxSensitivity(true);
+                        // Usar valor por defecto para túnel de RFID (no máxima)
+                        antennaConfig.setIsMaxRxSensitivity(false);
+                        double defaultSensitivity = readerConfig.getDefaultRxSensitivityDbm() != null 
+                            ? readerConfig.getDefaultRxSensitivityDbm() 
+                            : DEFAULT_TUNNEL_RX_SENSITIVITY_DBM;
+                        antennaConfig.setRxSensitivityinDbm(defaultSensitivity);
                     }
                 }
             }
