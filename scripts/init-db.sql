@@ -16,6 +16,11 @@ CREATE TABLE IF NOT EXISTS readers (
     read_duration_seconds INTEGER DEFAULT 5,
     pause_duration_seconds INTEGER DEFAULT 5,
     connected_antennas_count INTEGER DEFAULT 0,
+    default_tx_power_dbm DECIMAL(5,2),
+    max_tx_power_dbm DECIMAL(5,2),
+    use_default_power BOOLEAN DEFAULT false,
+    default_rx_sensitivity_dbm DECIMAL(5,2),
+    antenna_switch_delay_ms INTEGER DEFAULT 100,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

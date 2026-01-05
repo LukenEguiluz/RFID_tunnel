@@ -170,6 +170,82 @@ public class ReaderController {
             "pauseDurationSeconds", reader.getPauseDurationSeconds() != null ? reader.getPauseDurationSeconds() : 5
         ));
     }
+    
+    /**
+     * Configura potencia de transmisión para un lector
+     * POST /api/readers/{id}/power
+     * Body: {
+     *   "defaultTxPowerDbm": 20.0,
+     *   "maxTxPowerDbm": 30.0,
+     *   "useDefaultPower": true
+     * }
+     */
+    @PostMapping("/{id}/power")
+    public ResponseEntity<Map<String, Object>> configurePower(
+            @PathVariable String id,
+            @RequestBody Map<String, Object> config) {
+        Reader reader = readerRepository.findById(id).orElse(null);
+        if (reader == null) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        // Actualizar configuración de potencia
+        if (config.containsKey("defaultTxPowerDbm")) {
+            Object powerObj = config.get("defaultTxPowerDbm");
+            if (powerObj == null) {
+                reader.setDefaultTxPowerDbm(null);
+            } else {
+                Double power = Double.valueOf(powerObj.toString());
+                // Validar rango típico de potencia (generalmente entre 10 y 32.5 dBm para Impinj)
+                if (power < 10.0 || power > 32.5) {
+                    return ResponseEntity.badRequest()
+                        .body(Map.of("error", "defaultTxPowerDbm debe estar entre 10.0 y 32.5 dBm"));
+                }
+                reader.setDefaultTxPowerDbm(power);
+            }
+        }
+        
+        if (config.containsKey("maxTxPowerDbm")) {
+            Object powerObj = config.get("maxTxPowerDbm");
+            if (powerObj == null) {
+                reader.setMaxTxPowerDbm(null);
+            } else {
+                Double power = Double.valueOf(powerObj.toString());
+                // Validar rango
+                if (power < 10.0 || power > 32.5) {
+                    return ResponseEntity.badRequest()
+                        .body(Map.of("error", "maxTxPowerDbm debe estar entre 10.0 y 32.5 dBm"));
+                }
+                // Validar que maxTxPowerDbm >= defaultTxPowerDbm si ambos están definidos
+                if (reader.getDefaultTxPowerDbm() != null && power < reader.getDefaultTxPowerDbm()) {
+                    return ResponseEntity.badRequest()
+                        .body(Map.of("error", "maxTxPowerDbm debe ser mayor o igual a defaultTxPowerDbm"));
+                }
+                reader.setMaxTxPowerDbm(power);
+            }
+        }
+        
+        if (config.containsKey("useDefaultPower")) {
+            reader.setUseDefaultPower(Boolean.valueOf(config.get("useDefaultPower").toString()));
+        }
+        
+        readerRepository.save(reader);
+        
+        // Si el lector está conectado, reiniciar para aplicar nueva configuración de potencia
+        if (reader.getIsConnected() != null && reader.getIsConnected()) {
+            log.info("Reiniciando lector {} para aplicar nueva configuración de potencia", id);
+            readerManager.resetReader(id);
+        }
+        
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("message", "Configuración de potencia actualizada. El lector se reiniciará para aplicar cambios.");
+        response.put("readerId", id);
+        response.put("defaultTxPowerDbm", reader.getDefaultTxPowerDbm());
+        response.put("maxTxPowerDbm", reader.getMaxTxPowerDbm());
+        response.put("useDefaultPower", reader.getUseDefaultPower() != null ? reader.getUseDefaultPower() : false);
+        
+        return ResponseEntity.ok(response);
+    }
 }
 
 

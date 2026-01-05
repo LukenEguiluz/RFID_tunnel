@@ -117,6 +117,21 @@ public class WebController {
                 existing.setPauseDurationSeconds(reader.getPauseDurationSeconds());
             }
             
+            // Actualizar configuración de potencia
+            existing.setDefaultTxPowerDbm(reader.getDefaultTxPowerDbm());
+            existing.setMaxTxPowerDbm(reader.getMaxTxPowerDbm());
+            existing.setUseDefaultPower(reader.getUseDefaultPower());
+            
+            // Actualizar configuración de sensibilidad
+            existing.setDefaultRxSensitivityDbm(reader.getDefaultRxSensitivityDbm());
+            
+            // Actualizar tiempo entre antenas
+            if (reader.getAntennaSwitchDelayMs() != null) {
+                existing.setAntennaSwitchDelayMs(reader.getAntennaSwitchDelayMs());
+            } else {
+                existing.setAntennaSwitchDelayMs(100); // Valor por defecto
+            }
+            
             readerRepository.save(existing);
             redirectAttributes.addFlashAttribute("success", "Lector actualizado exitosamente. Reinicia el lector para aplicar cambios en el modo de lectura.");
             

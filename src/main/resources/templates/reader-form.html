@@ -100,6 +100,10 @@
     <div class="container">
         <div class="card">
             <h1>➕ Agregar Nuevo Lector</h1>
+            <div style="margin-bottom: 20px;">
+                <a href="/readers" class="btn">← Volver a Lectores</a>
+                <a href="/" class="btn" style="background: #718096;">🏠 Inicio</a>
+            </div>
             
             <form th:action="@{/readers}" method="post" th:object="${reader}">
                 <div class="form-group">
@@ -171,7 +175,7 @@
                 
                 <div style="margin-top: 30px;">
                     <button type="submit" class="btn">💾 Guardar</button>
-                    <a href="/readers" class="btn btn-secondary">Cancelar</a>
+                    <a href="/readers" class="btn btn-secondary">← Cancelar</a>
                 </div>
             </form>
         </div>

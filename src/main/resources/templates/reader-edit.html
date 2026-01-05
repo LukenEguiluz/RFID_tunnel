@@ -48,7 +48,8 @@
         
         input[type="text"],
         input[type="number"],
-        input[type="checkbox"] {
+        input[type="checkbox"],
+        select {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
@@ -239,9 +240,79 @@
                     </div>
                 </div>
                 
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;">
+                
+                <h3 style="margin-bottom: 15px; color: #333;">⚡ Configuración de Potencia</h3>
+                
+                <div class="form-group">
+                    <label for="defaultTxPowerDbm">Potencia por Defecto (dBm)</label>
+                    <select id="defaultTxPowerDbm" name="defaultTxPowerDbm" style="max-width: 200px;">
+                        <option value="">Usar Máxima Potencia</option>
+                    </select>
+                    <input type="hidden" th:field="*{defaultTxPowerDbm}" id="defaultTxPowerDbm-hidden">
+                    <div class="help-text">Potencia de transmisión por defecto para todas las antenas según SDK Octane (10.0 - 32.5 dBm en incrementos de 0.5 dBm).</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="maxTxPowerDbm">Potencia Máxima (dBm)</label>
+                    <select id="maxTxPowerDbm" name="maxTxPowerDbm" style="max-width: 200px;">
+                        <option value="">Sin Límite</option>
+                    </select>
+                    <input type="hidden" th:field="*{maxTxPowerDbm}" id="maxTxPowerDbm-hidden">
+                    <div class="help-text">Límite máximo de potencia permitida según SDK Octane (10.0 - 32.5 dBm en incrementos de 0.5 dBm).</div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="useDefaultPower" th:field="*{useDefaultPower}">
+                        <label for="useDefaultPower">Usar potencia por defecto para todas las antenas</label>
+                    </div>
+                    <div class="help-text">Si está activado, todas las antenas usarán la potencia por defecto (ignora la potencia individual de cada antena).</div>
+                </div>
+                
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;">
+                
+                <h3 style="margin-bottom: 15px; color: #333;">📡 Configuración de Sensibilidad</h3>
+                
+                <div class="form-group">
+                    <label for="defaultRxSensitivityDbm">Sensibilidad por Defecto (dBm)</label>
+                    <select id="defaultRxSensitivityDbm" name="defaultRxSensitivityDbm" style="max-width: 200px;" th:field="*{defaultRxSensitivityDbm}">
+                        <option value="">Usar Máxima Sensibilidad</option>
+                        <option value="-100" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -100.0}">-100 dBm</option>
+                        <option value="-95" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -95.0}">-95 dBm</option>
+                        <option value="-90" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -90.0}">-90 dBm</option>
+                        <option value="-85" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -85.0}">-85 dBm</option>
+                        <option value="-80" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -80.0}">-80 dBm</option>
+                        <option value="-75" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -75.0}">-75 dBm</option>
+                        <option value="-70" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -70.0}">-70 dBm</option>
+                        <option value="-65" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -65.0}">-65 dBm</option>
+                        <option value="-60" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -60.0}">-60 dBm</option>
+                        <option value="-55" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -55.0}">-55 dBm</option>
+                        <option value="-50" th:selected="${reader.defaultRxSensitivityDbm != null and reader.defaultRxSensitivityDbm == -50.0}">-50 dBm</option>
+                    </select>
+                    <div class="help-text">Sensibilidad de recepción por defecto para todas las antenas según SDK Octane (-100 a -50 dBm en incrementos de 5 dBm).</div>
+                </div>
+                
+                <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;">
+                
+                <h3 style="margin-bottom: 15px; color: #333;">⏱️ Configuración de Antenas</h3>
+                
+                <div class="form-group">
+                    <label for="antennaSwitchDelayMs">Tiempo entre Antenas (milisegundos)</label>
+                    <input type="number" id="antennaSwitchDelayMs" 
+                           th:field="*{antennaSwitchDelayMs}" 
+                           min="0" 
+                           max="10000"
+                           step="10"
+                           value="100"
+                           style="max-width: 200px;">
+                    <div class="help-text">Tiempo de espera al cambiar entre diferentes antenas durante la lectura (0-10000 ms). Valor recomendado: 100-500 ms.</div>
+                </div>
+                
                 <div style="margin-top: 30px;">
                     <button type="submit" class="btn">💾 Guardar Cambios</button>
-                    <a href="/readers" class="btn">Cancelar</a>
+                    <a href="/readers" class="btn">← Volver a Lectores</a>
+                    <a href="/" class="btn" style="background: #718096;">🏠 Inicio</a>
                 </div>
             </form>
         </div>
@@ -290,10 +361,13 @@
         </div>
         
         <div class="card">
-            <h2>📡 Antenas del Lector</h2>
-            
-            <a th:href="@{/readers/{id}/antennas/new(id=${reader.id})}" 
-               class="btn btn-success">➕ Agregar Antena</a>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;">📡 Antenas del Lector</h2>
+                <div>
+                    <a th:href="@{/readers/{id}/antennas/new(id=${reader.id})}" 
+                       class="btn btn-success">➕ Agregar Antena</a>
+                </div>
+            </div>
             
             <div th:if="${antennas != null and !antennas.empty}">
                 <table>
@@ -338,6 +412,35 @@
             </div>
         </div>
     </div>
+    <script>
+        // Generar opciones de potencia TX (10.0 a 32.5 dBm en incrementos de 0.5)
+        function generateTxPowerOptions(selectId, hiddenId, currentValue) {
+            const select = document.getElementById(selectId);
+            const hidden = document.getElementById(hiddenId);
+            
+            for (let power = 10.0; power <= 32.5; power += 0.5) {
+                const option = document.createElement('option');
+                option.value = power.toString();
+                option.textContent = power + ' dBm';
+                if (currentValue !== null && Math.abs(parseFloat(currentValue) - power) < 0.01) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            }
+            
+            // Sincronizar cambios del select con el hidden input
+            select.addEventListener('change', function() {
+                hidden.value = this.value || '';
+            });
+        }
+        
+        // Generar opciones para los selects de potencia
+        const defaultTxPower = /*[[${reader.defaultTxPowerDbm}]]*/ null;
+        const maxTxPower = /*[[${reader.maxTxPowerDbm}]]*/ null;
+        
+        generateTxPowerOptions('defaultTxPowerDbm', 'defaultTxPowerDbm-hidden', defaultTxPower);
+        generateTxPowerOptions('maxTxPowerDbm', 'maxTxPowerDbm-hidden', maxTxPower);
+    </script>
 </body>
 </html>
 
