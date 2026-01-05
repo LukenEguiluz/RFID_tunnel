@@ -415,46 +415,103 @@
     <script>
         // Función para sincronizar valores antes de enviar el formulario
         function syncPowerValues() {
+            console.log('=== INICIANDO SINCRONIZACIÓN DE VALORES DE POTENCIA ===');
+            
             const defaultSelect = document.getElementById('defaultTxPowerDbm');
             const defaultHidden = document.getElementById('defaultTxPowerDbm-hidden');
             const maxSelect = document.getElementById('maxTxPowerDbm');
             const maxHidden = document.getElementById('maxTxPowerDbm-hidden');
             
+            console.log('Elementos encontrados:');
+            console.log('  - defaultSelect:', defaultSelect ? 'OK' : 'NO ENCONTRADO');
+            console.log('  - defaultHidden:', defaultHidden ? 'OK' : 'NO ENCONTRADO');
+            console.log('  - maxSelect:', maxSelect ? 'OK' : 'NO ENCONTRADO');
+            console.log('  - maxHidden:', maxHidden ? 'OK' : 'NO ENCONTRADO');
+            
             if (defaultSelect && defaultHidden) {
-                defaultHidden.value = defaultSelect.value || '';
-                console.log('Sincronizando defaultTxPowerDbm:', defaultHidden.value);
+                const selectValue = defaultSelect.value || '';
+                const oldHiddenValue = defaultHidden.value;
+                defaultHidden.value = selectValue;
+                console.log('📡 defaultTxPowerDbm:');
+                console.log('  - Valor del SELECT:', selectValue);
+                console.log('  - Valor anterior del HIDDEN:', oldHiddenValue);
+                console.log('  - Valor nuevo del HIDDEN:', defaultHidden.value);
+                console.log('  - Atributo name del HIDDEN:', defaultHidden.getAttribute('name'));
+                console.log('  - Atributo id del HIDDEN:', defaultHidden.getAttribute('id'));
+            } else {
+                console.error('❌ ERROR: No se encontraron elementos para defaultTxPowerDbm');
             }
             
             if (maxSelect && maxHidden) {
-                maxHidden.value = maxSelect.value || '';
-                console.log('Sincronizando maxTxPowerDbm:', maxHidden.value);
+                const selectValue = maxSelect.value || '';
+                const oldHiddenValue = maxHidden.value;
+                maxHidden.value = selectValue;
+                console.log('📡 maxTxPowerDbm:');
+                console.log('  - Valor del SELECT:', selectValue);
+                console.log('  - Valor anterior del HIDDEN:', oldHiddenValue);
+                console.log('  - Valor nuevo del HIDDEN:', maxHidden.value);
+                console.log('  - Atributo name del HIDDEN:', maxHidden.getAttribute('name'));
+                console.log('  - Atributo id del HIDDEN:', maxHidden.getAttribute('id'));
+            } else {
+                console.error('❌ ERROR: No se encontraron elementos para maxTxPowerDbm');
             }
             
+            // Mostrar todos los valores que se enviarán
+            const form = document.getElementById('readerForm');
+            if (form) {
+                const formData = new FormData(form);
+                console.log('📋 DATOS DEL FORMULARIO QUE SE ENVIARÁN:');
+                for (let [key, value] of formData.entries()) {
+                    if (key.includes('Power') || key.includes('Sensitivity') || key.includes('Switch')) {
+                        console.log(`  - ${key}: "${value}" (tipo: ${typeof value})`);
+                    }
+                }
+            }
+            
+            console.log('=== FIN DE SINCRONIZACIÓN ===');
             return true; // Continuar con el envío del formulario
         }
         
         // Generar opciones de potencia TX (10.0 a 32.5 dBm en incrementos de 0.5)
         function generateTxPowerOptions(selectId, hiddenId, currentValue) {
+            console.log(`🔧 Inicializando ${selectId}...`);
+            
             const select = document.getElementById(selectId);
             const hidden = document.getElementById(hiddenId);
             
             if (!select || !hidden) {
-                console.error('No se encontraron elementos:', selectId, hiddenId);
+                console.error(`❌ ERROR: No se encontraron elementos - selectId: ${selectId}, hiddenId: ${hiddenId}`);
+                console.error('  - select:', select);
+                console.error('  - hidden:', hidden);
                 return;
             }
             
+            console.log(`✅ Elementos encontrados para ${selectId}:`);
+            console.log('  - SELECT:', select);
+            console.log('  - HIDDEN:', hidden);
+            console.log('  - Valor actual del servidor:', currentValue);
+            console.log('  - Atributos del HIDDEN:');
+            console.log('    * name:', hidden.getAttribute('name'));
+            console.log('    * id:', hidden.getAttribute('id'));
+            console.log('    * value actual:', hidden.value);
+            
             // Limpiar opciones existentes (excepto la primera)
+            const initialOptionsCount = select.options.length;
             while (select.options.length > 1) {
                 select.remove(1);
             }
+            console.log(`  - Opciones limpiadas: ${initialOptionsCount} -> ${select.options.length}`);
             
             // Generar opciones
+            let optionsGenerated = 0;
             for (let power = 10.0; power <= 32.5; power += 0.5) {
                 const option = document.createElement('option');
                 option.value = power.toFixed(1);
                 option.textContent = power.toFixed(1) + ' dBm';
                 select.appendChild(option);
+                optionsGenerated++;
             }
+            console.log(`  - Opciones generadas: ${optionsGenerated}`);
             
             // Establecer el valor inicial del hidden input si hay un valor actual
             if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
@@ -463,39 +520,71 @@
                     const powerStr = powerValue.toFixed(1);
                     hidden.value = powerStr;
                     // Seleccionar la opción correspondiente
+                    let optionFound = false;
                     for (let option of select.options) {
                         if (option.value && Math.abs(parseFloat(option.value) - powerValue) < 0.01) {
                             option.selected = true;
+                            optionFound = true;
+                            console.log(`  ✅ Valor inicial establecido: ${powerStr} (opción seleccionada)`);
                             break;
                         }
                     }
-                    console.log('Valor inicial establecido para', selectId, ':', powerStr);
+                    if (!optionFound) {
+                        console.warn(`  ⚠️ Valor inicial ${powerStr} no encontrado en opciones`);
+                    }
                 } else {
                     hidden.value = '';
                     select.options[0].selected = true;
+                    console.log(`  ⚠️ Valor inicial inválido (NaN), usando valor vacío`);
                 }
             } else {
                 hidden.value = '';
                 select.options[0].selected = true;
+                console.log(`  ℹ️ Sin valor inicial, usando valor vacío`);
             }
+            
+            console.log(`  - Valor final del HIDDEN: "${hidden.value}"`);
+            console.log(`  - Opción seleccionada en SELECT: "${select.options[select.selectedIndex]?.value || 'ninguna'}"`);
             
             // Sincronizar cambios del select con el hidden input
             select.addEventListener('change', function() {
                 const value = this.value || '';
+                const oldHiddenValue = hidden.value;
                 hidden.value = value;
-                console.log('Potencia cambiada:', selectId, '=', value, '-> hidden:', hidden.value);
+                console.log(`🔄 Cambio detectado en ${selectId}:`);
+                console.log('  - Nuevo valor del SELECT:', value);
+                console.log('  - Valor anterior del HIDDEN:', oldHiddenValue);
+                console.log('  - Nuevo valor del HIDDEN:', hidden.value);
             });
+            
+            console.log(`✅ ${selectId} inicializado correctamente\n`);
         }
         
         // Generar opciones para los selects de potencia cuando la página esté cargada
         window.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 ===== INICIALIZANDO PÁGINA DE EDICIÓN DE LECTOR =====');
+            
             const defaultTxPower = /*[[${reader.defaultTxPowerDbm}]]*/ null;
             const maxTxPower = /*[[${reader.maxTxPowerDbm}]]*/ null;
             
-            console.log('Valores iniciales - defaultTxPower:', defaultTxPower, 'maxTxPower:', maxTxPower);
+            console.log('📊 Valores iniciales del servidor:');
+            console.log('  - defaultTxPowerDbm:', defaultTxPower, `(tipo: ${typeof defaultTxPower})`);
+            console.log('  - maxTxPowerDbm:', maxTxPower, `(tipo: ${typeof maxTxPower})`);
             
             generateTxPowerOptions('defaultTxPowerDbm', 'defaultTxPowerDbm-hidden', defaultTxPower);
             generateTxPowerOptions('maxTxPowerDbm', 'maxTxPowerDbm-hidden', maxTxPower);
+            
+            // Verificar el formulario
+            const form = document.getElementById('readerForm');
+            if (form) {
+                console.log('✅ Formulario encontrado:', form);
+                console.log('  - action:', form.getAttribute('action'));
+                console.log('  - method:', form.getAttribute('method'));
+            } else {
+                console.error('❌ ERROR: Formulario no encontrado');
+            }
+            
+            console.log('🚀 ===== INICIALIZACIÓN COMPLETA =====\n');
         });
     </script>
 </body>
