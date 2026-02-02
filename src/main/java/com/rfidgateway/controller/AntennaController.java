@@ -1,7 +1,7 @@
 package com.rfidgateway.controller;
 
 import com.rfidgateway.model.Antenna;
-import com.rfidgateway.model.Reader;
+import com.rfidgateway.reader.ReaderManager;
 import com.rfidgateway.repository.AntennaRepository;
 import com.rfidgateway.repository.ReaderRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +22,9 @@ public class AntennaController {
     
     @Autowired
     private ReaderRepository readerRepository;
+    
+    @Autowired(required = false)
+    private ReaderManager readerManager;
     
     @GetMapping
     public ResponseEntity<List<Antenna>> getAllAntennas() {
@@ -46,52 +49,65 @@ public class AntennaController {
         return ResponseEntity.ok(antennas);
     }
     
-    @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateAntenna(@PathVariable String id, @RequestBody Antenna antennaUpdate) {
+    /**
+     * Reset de antena por ID.
+     * Reinicia la configuración de antenas del lector al que pertenece esta antena.
+     * Útil cuando se quiere resetear por antena específica sin conocer el readerId.
+     */
+    @PostMapping("/{id}/reset")
+    public ResponseEntity<?> resetAntenna(@PathVariable String id) {
         return antennaRepository.findById(id)
             .map(antenna -> {
-                // Actualizar campos permitidos
-                if (antennaUpdate.getName() != null) {
-                    antenna.setName(antennaUpdate.getName());
+                String readerId = antenna.getReaderId();
+                if (readerManager != null) {
+                    try {
+                        readerManager.resetAntennas(readerId);
+                        log.info("Reset de antena {} (lector {}) ejecutado correctamente", id, readerId);
+                        return ResponseEntity.ok(Map.of(
+                            "message", "Antenna configuration reset",
+                            "antennaId", id,
+                            "readerId", readerId
+                        ));
+                    } catch (Exception e) {
+                        log.error("Error al resetear antena {}: {}", id, e.getMessage());
+                        return ResponseEntity.status(500)
+                            .body(Map.of("error", "Error al resetear: " + e.getMessage()));
+                    }
+                } else {
+                    return ResponseEntity.status(503)
+                        .body(Map.of("error", "ReaderManager no disponible"));
                 }
-                if (antennaUpdate.getEnabled() != null) {
-                    antenna.setEnabled(antennaUpdate.getEnabled());
-                }
-                if (antennaUpdate.getTxPowerDbm() != null) {
-                    antenna.setTxPowerDbm(antennaUpdate.getTxPowerDbm());
-                }
-                if (antennaUpdate.getRxSensitivityDbm() != null) {
-                    antenna.setRxSensitivityDbm(antennaUpdate.getRxSensitivityDbm());
-                }
-                if (antennaUpdate.getReadDurationSeconds() != null) {
-                    antenna.setReadDurationSeconds(antennaUpdate.getReadDurationSeconds());
-                }
-                
-                antennaRepository.save(antenna);
-                
-                // Actualizar contador de antenas conectadas del lector
-                updateConnectedAntennasCount(antenna.getReaderId());
-                
-                return ResponseEntity.ok(Map.of(
-                    "message", "Antena actualizada exitosamente",
-                    "antenna", antenna
-                ));
             })
             .orElse(ResponseEntity.notFound().build());
     }
     
-    private void updateConnectedAntennasCount(String readerId) {
-        try {
-            Reader reader = readerRepository.findById(readerId).orElse(null);
-            if (reader != null) {
-                // Contar antenas habilitadas (enabled = true)
-                int count = antennaRepository.findByReaderIdAndEnabledTrue(readerId).size();
-                reader.setConnectedAntennasCount(count);
-                readerRepository.save(reader);
-            }
-        } catch (Exception e) {
-            log.error("Error al actualizar contador de antenas para lector {}: {}", readerId, e.getMessage());
-        }
+    /**
+     * Actualizar antena (habilitar/deshabilitar, potencia, sensibilidad).
+     * Requiere POST /api/readers/{readerId}/antennas/reset o restart del lector para aplicar cambios.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateAntenna(@PathVariable String id, @RequestBody Map<String, Object> request) {
+        return antennaRepository.findById(id)
+            .map(antenna -> {
+                if (request.containsKey("enabled")) {
+                    antenna.setEnabled(Boolean.valueOf(request.get("enabled").toString()));
+                }
+                if (request.containsKey("name")) {
+                    antenna.setName((String) request.get("name"));
+                }
+                if (request.containsKey("txPowerDbm") || request.containsKey("tx_power_dbm")) {
+                    Object val = request.getOrDefault("txPowerDbm", request.get("tx_power_dbm"));
+                    antenna.setTxPowerDbm(Double.valueOf(val.toString()));
+                }
+                if (request.containsKey("rxSensitivityDbm") || request.containsKey("rx_sensitivity_dbm")) {
+                    Object val = request.getOrDefault("rxSensitivityDbm", request.get("rx_sensitivity_dbm"));
+                    antenna.setRxSensitivityDbm(Double.valueOf(val.toString()));
+                }
+                antennaRepository.save(antenna);
+                log.info("Antena {} actualizada", id);
+                return ResponseEntity.ok(antenna);
+            })
+            .orElse(ResponseEntity.notFound().build());
     }
 }
 

@@ -1,0 +1,236 @@
+% ============================================================
+% CÓDIGO LATEX PARA OVERLEAF - Arquitectura WebApp + VPN ZeroTier
+% Proyecto: doHealth RFID Gateway
+% ============================================================
+% Copiar este contenido en un archivo .tex en Overleaf
+% Requiere: listings, xcolor, booktabs, hyperref
+% Para diagrama ASCII: verbatim o listing
+% ============================================================
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{parskip}
+\usepackage{fancyvrb}
+
+\geometry{margin=2.5cm}
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+    keywordstyle=\color{blue},
+    stringstyle=\color{red},
+    commentstyle=\color{green!50!black}
+}
+
+\title{Arquitectura WebApp + VPN ZeroTier (AWS)}
+\author{RFID Gateway - doHealth}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Esta guía describe cómo la webapp debe recibir la información del RFID Gateway y la arquitectura de conexión usando una VM en AWS y ZeroTier para la VPN entre lectores/antenas y la webapp.
+\end{abstract}
+
+\section{Diagrama de Arquitectura}
+
+\begin{Verbatim}[fontsize=\small,frame=single]
++---------------------------------------------------------------+
+|                      CLOUD (AWS)                               |
+|  +---------------------------------------------------------+   |
+|  |  VM AWS (EC2 o similar)                                 |   |
+|  |  - ZeroTier instalado (nodo de la red virtual)          |   |
+|  |  - IP ZeroTier: 10.147.x.x (ejemplo)                    |   |
+|  |  - Docker: gateway + webapp (o solo webapp on-prem)     |   |
+|  +---------------------------------------------------------+   |
+|                              |                                 |
+|                              | ZeroTier VPN (malla P2P)        |
+|                              v                                 |
++---------------------------------------------------------------+
+                               |
+     +-------------------------+-------------------------+
+     |                         |                         |
+     v                         v                         v
++-----------+           +-----------+           +-----------+
+| Sede 1    |           | Sede 2    |           | Webapp    |
+| Gateway   |           | Gateway   |           | (naveg.)  |
+| ZeroTier  |           | ZeroTier  |           | Browser   |
+| Lectores  |           | Lectores  |           |           |
++-----------+           +-----------+           +-----------+
+\end{Verbatim}
+
+\section{Cómo la WebApp Recibe la Información}
+
+La webapp puede consumir los datos del Gateway RFID de \textbf{tres formas}:
+
+\subsection{1. Server-Sent Events (SSE) -- Recomendado para tiempo real}
+
+\textbf{Endpoint:}
+\begin{lstlisting}[language=]
+GET /api/realtime/events?readerId={id}&antenna={antennaId}
+\end{lstlisting}
+
+\textbf{Formato de conexión (JavaScript):}
+\begin{lstlisting}[language=JavaScript]
+const GATEWAY_URL = 'http://10.147.20.1:8080';
+const eventSource = new EventSource(`${GATEWAY_URL}/api/realtime/events`);
+
+eventSource.addEventListener('tag', (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Tag detectado:', data);
+});
+
+eventSource.addEventListener('connected', (event) => {
+  console.log('Conectado al stream:', event.data);
+});
+
+eventSource.onerror = (err) => {
+  console.error('Error SSE:', err);
+};
+\end{lstlisting}
+
+\textbf{Ventajas:} Unidireccional, bajo overhead, reconexión automática.
+
+\subsection{2. WebSocket -- Bidireccional}
+
+\textbf{Endpoint:} \texttt{ws://\{GATEWAY\_IP\}:8080/ws/events}
+
+\begin{lstlisting}[language=JavaScript]
+const GATEWAY_WS = 'ws://10.147.20.1:8080/ws/events';
+const ws = new WebSocket(GATEWAY_WS);
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.type === 'TAG_DETECTED') {
+    console.log('Tag:', data.epc, 'Antena:', data.antennaId);
+  }
+  if (data.type === 'READER_RECONNECTED') {
+    console.log('Lector reconectado:', data.readerId);
+  }
+};
+
+ws.onclose = () => {
+  setTimeout(() => connectWebSocket(), 5000);
+};
+\end{lstlisting}
+
+\subsection{3. REST + Polling -- Consultas bajo demanda}
+
+\textbf{Endpoints útiles:}
+\begin{lstlisting}[language=]
+GET  /api/events?reader={id}&antenna={id}&page=0&size=50
+GET  /api/events/latest?limit=20
+GET  /api/readers/{id}/status
+GET  /api/antennas
+POST /api/sessions/start  (body: { readerId })
+POST /api/sessions/{id}/stop
+GET  /api/sessions/{id}
+\end{lstlisting}
+
+\section{Configuración de la URL del Gateway}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Escenario} & \textbf{URL del Gateway} & \textbf{Ejemplo} \\
+\midrule
+Gateway en misma máquina & \texttt{localhost:8080} & Desarrollo local \\
+Gateway en sede vía ZeroTier & \texttt{10.147.20.x:8080} & IP ZeroTier \\
+Gateway expuesto en AWS & \texttt{api.rfid.tudominio.com} & Reverse proxy \\
+\bottomrule
+\end{tabular}
+\caption{Configuración de URL según entorno}
+\end{table}
+
+\textbf{Variable de entorno:}
+\begin{lstlisting}[language=bash]
+VITE_RFID_GATEWAY_URL=http://10.147.20.1:8080   # Vite/React
+REACT_APP_RFID_GATEWAY_URL=http://10.147.20.1:8080
+NEXT_PUBLIC_RFID_GATEWAY_URL=http://10.147.20.1:8080
+\end{lstlisting}
+
+\section{ZeroTier: Configuración para la VPN}
+
+\subsection{Crear red en ZeroTier Central}
+\begin{enumerate}
+    \item Entrar en \url{https://my.zerotier.com}
+    \item Crear una red y anotar el \textbf{Network ID} (16 caracteres)
+    \item En la red: Settings $\to$ Access Control
+\end{enumerate}
+
+\subsection{Instalar ZeroTier en cada nodo}
+
+\textbf{VM AWS y Gateway en sede (Linux):}
+\begin{lstlisting}[language=bash]
+curl -s https://install.zerotier.com | sudo bash
+sudo zerotier-cli join <NETWORK_ID>
+\end{lstlisting}
+
+\textbf{Windows:} Descargar desde \url{https://www.zerotier.com/download/}
+
+\subsection{Autorizar nodos}
+En la red, en Members, marcar \textbf{Auth} para cada nodo. Anotar la IP asignada (ej. 10.147.20.1, 10.147.20.2).
+
+\section{Topologías Posibles}
+
+\begin{itemize}
+    \item \textbf{Opción A -- Gateway en sede, WebApp en AWS:} Sede con Gateway RFID + ZeroTier. AWS con webapp + ZeroTier. WebApp llama a \texttt{http://10.147.20.1:8080} vía ZeroTier.
+    
+    \item \textbf{Opción B -- Gateway y WebApp en la misma VM AWS:} Todo centralizado. Sede solo con lectores accesibles desde la VM.
+    
+    \item \textbf{Opción C -- Desarrollo:} Sede con Gateway + ZeroTier. Dev con ZeroTier en PC. Webapp en \texttt{localhost:3000} llama a \texttt{http://10.147.20.1:8080}.
+\end{itemize}
+
+\section{Consideraciones de Seguridad y Red}
+
+\begin{enumerate}
+    \item \textbf{CORS:} El \texttt{CorsConfig} del gateway debe permitir el origen de la webapp.
+    \item \textbf{Firewall:} Puertos 8080 (gateway) y 9993 (ZeroTier).
+    \item \textbf{HTTPS:} Usar reverse proxy (Nginx) con TLS en producción.
+    \item \textbf{ZeroTier:} Red privada, tráfico cifrado.
+    \item \textbf{Timeout:} Configurar heartbeats y reconexión en SSE/WebSocket.
+\end{enumerate}
+
+\section{Resumen de Endpoints para la WebApp}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Uso} & \textbf{Método} & \textbf{Endpoint} \\
+\midrule
+Eventos tiempo real & GET & \texttt{/api/realtime/events} \\
+WebSocket eventos & WS & \texttt{/ws/events} \\
+Últimos eventos & GET & \texttt{/api/events/latest?limit=N} \\
+Estado del gateway & GET & \texttt{/api/status} \\
+Reset antena por ID & POST & \texttt{/api/antennas/\{id\}/reset} \\
+Iniciar sesión & POST & \texttt{/api/sessions/start} \\
+Detener sesión & POST & \texttt{/api/sessions/\{id\}/stop} \\
+Estado de sesión & GET & \texttt{/api/sessions/\{id\}} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Formato de Datos de Tag}
+
+\begin{lstlisting}[language=]
+{
+  "epc": "E200123456789012",
+  "readerId": "reader-1",
+  "antennaId": "reader-1-antenna-1",
+  "antennaPort": 1,
+  "rssi": -45.5,
+  "detectedAt": "2024-01-15T10:30:00.123"
+}
+\end{lstlisting}
+
+\end{document}

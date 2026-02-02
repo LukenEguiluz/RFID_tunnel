@@ -77,6 +77,11 @@
             color: white;
         }
         
+        .method-put {
+            background: #3182ce;
+            color: white;
+        }
+        
         .endpoint-url {
             font-family: 'Courier New', monospace;
             background: #2d3748;
@@ -321,10 +326,10 @@
             <div class="api-endpoint">
                 <h3>
                     <span class="method method-post">POST</span>
-                    Reset de antenas
+                    Reset de antenas (por lector)
                 </h3>
                 <div class="endpoint-url">/api/readers/{id}/antennas/reset</div>
-                <div class="description">Reinicia solo la configuración de antenas sin desconectar el lector</div>
+                <div class="description">Reinicia solo la configuración de antenas del lector sin desconectarlo</div>
                 <div class="response">
                     <strong>Respuesta:</strong>
                     <pre>{
@@ -333,6 +338,59 @@
 }</pre>
                 </div>
                 <button class="btn btn-test" onclick="testApiWithId('POST', '/api/readers/', '/antennas/reset')">Probar API</button>
+            </div>
+        </div>
+        
+        <!-- Antenas -->
+        <div class="api-section">
+            <h2>📡 APIs de Antenas</h2>
+            
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-get">GET</span>
+                    Listar todas las antenas
+                </h3>
+                <div class="endpoint-url">/api/antennas</div>
+                <div class="description">Obtiene la lista de todas las antenas configuradas</div>
+                <button class="btn btn-test" onclick="testApi('GET', '/api/antennas', null)">Probar API</button>
+            </div>
+            
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-get">GET</span>
+                    Obtener antena por ID
+                </h3>
+                <div class="endpoint-url">/api/antennas/{id}</div>
+                <div class="description">Obtiene la información de una antena específica</div>
+            </div>
+            
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-post">POST</span>
+                    Reset de antena por ID
+                </h3>
+                <div class="endpoint-url">/api/antennas/{antennaId}/reset</div>
+                <div class="description">Reinicia la configuración de antenas del lector al que pertenece esta antena. Usa el ID de la antena (ej: reader-1-antenna-1)</div>
+                <div class="response">
+                    <strong>Respuesta:</strong>
+                    <pre>{
+  "message": "Antenna configuration reset",
+  "antennaId": "reader-1-antenna-1",
+  "readerId": "reader-1"
+}</pre>
+                </div>
+            </div>
+            
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-put">PUT</span>
+                    Actualizar antena
+                </h3>
+                <div class="endpoint-url">/api/antennas/{id}</div>
+                <div class="description">Actualiza antena (enabled, name, txPowerDbm, rxSensitivityDbm). Después aplicar cambios: POST /api/antennas/{id}/reset</div>
+                <div class="params">
+                    <strong>Body JSON:</strong> enabled, name, txPowerDbm, rxSensitivityDbm
+                </div>
             </div>
         </div>
         

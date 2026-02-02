@@ -1,0 +1,163 @@
+% ============================================================
+% CÓDIGO LATEX PARA OVERLEAF - Comandos de Reinicio y Reboot
+% Proyecto: doHealth RFID Gateway
+% ============================================================
+% Copiar este contenido en un archivo .tex en Overleaf
+% Requiere: \usepackage{listings}, \usepackage{xcolor}, \usepackage{booktabs}
+% ============================================================
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{parskip}
+
+\geometry{margin=2.5cm}
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+    keywordstyle=\color{blue},
+    stringstyle=\color{red},
+    commentstyle=\color{green!50!black}
+}
+
+\title{Comandos de Reinicio y Reboot}
+\author{RFID Gateway - doHealth}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Endpoints REST Disponibles}
+
+\subsection{1. Reset de Conexión}
+Reinicia la conexión del lector (desconecta y reconecta después de 2 segundos).
+
+\begin{lstlisting}[language=bash,caption={Endpoint}]
+POST /api/readers/{id}/reset
+\end{lstlisting}
+
+\textbf{Ejemplo:}
+\begin{lstlisting}[language=bash]
+curl -X POST http://localhost:8080/api/readers/lector-1/reset
+\end{lstlisting}
+
+\textbf{Respuesta:}
+\begin{lstlisting}[language=]
+{
+  "message": "Reader reset and reconnecting",
+  "readerId": "lector-1"
+}
+\end{lstlisting}
+
+\subsection{2. Reboot Completo}
+Ejecuta un reboot completo del lector (desconecta y reconecta después de 5 segundos).
+
+\begin{lstlisting}[language=bash,caption={Endpoint}]
+POST /api/readers/{id}/reboot
+\end{lstlisting}
+
+\textbf{Ejemplo:}
+\begin{lstlisting}[language=bash]
+curl -X POST http://localhost:8080/api/readers/lector-1/reboot
+\end{lstlisting}
+
+\textbf{Respuesta:}
+\begin{lstlisting}[language=]
+{
+  "message": "Reader reboot initiated, will reconnect in 5 seconds",
+  "readerId": "lector-1"
+}
+\end{lstlisting}
+
+\subsection{3. Reset de Antenas (por lector)}
+Reinicia solo la configuración de antenas del lector sin desconectarlo.
+
+\begin{lstlisting}[language=bash,caption={Endpoint}]
+POST /api/readers/{id}/antennas/reset
+\end{lstlisting}
+
+\textbf{Ejemplo:}
+\begin{lstlisting}[language=bash]
+curl -X POST http://localhost:8080/api/readers/lector-1/antennas/reset
+\end{lstlisting}
+
+\textbf{Respuesta:}
+\begin{lstlisting}[language=]
+{
+  "message": "Antennas configuration reset",
+  "readerId": "lector-1"
+}
+\end{lstlisting}
+
+\subsection{4. Reset de Antena por ID}
+Reinicia la configuración de antenas del lector al que pertenece la antena especificada. Usa el ID de la antena (ej: \texttt{reader-1-antenna-1}).
+
+\begin{lstlisting}[language=bash,caption={Endpoint}]
+POST /api/antennas/{antennaId}/reset
+\end{lstlisting}
+
+\textbf{Ejemplo:}
+\begin{lstlisting}[language=bash]
+curl -X POST http://localhost:8080/api/antennas/reader-1-antenna-1/reset
+\end{lstlisting}
+
+\textbf{Respuesta:}
+\begin{lstlisting}[language=]
+{
+  "message": "Antenna configuration reset",
+  "antennaId": "reader-1-antenna-1",
+  "readerId": "reader-1"
+}
+\end{lstlisting}
+
+\section{Cuándo Usar Cada Comando}
+
+\begin{itemize}
+    \item \textbf{Reset (\texttt{/reset}):} Cuando el lector está conectado pero no está leyendo tags. Desconecta completamente, espera 2 segundos y reconecta. Tiempo: $\sim$2--3 segundos.
+    
+    \item \textbf{Reboot (\texttt{/reboot}):} Cuando hay problemas persistentes o necesitas un reinicio completo. Desconecta completamente, espera 5 segundos y reconecta. Tiempo: $\sim$5--6 segundos.
+    
+    \item \textbf{Reset de Antenas:} Cuando solo necesitas reiniciar la configuración de antenas sin desconectar.
+    \begin{itemize}
+        \item Por lector: \texttt{POST /api/readers/\{id\}/antennas/reset}
+        \item Por antena: \texttt{POST /api/antennas/\{antennaId\}/reset}
+        \item Tiempo: $\sim$1 segundo
+    \end{itemize}
+\end{itemize}
+
+\section{Ejemplos con PowerShell}
+
+\begin{lstlisting}[language=bash]
+# Reset de conexion
+Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/readers/lector-1/reset"
+
+# Reboot completo
+Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/readers/lector-1/reboot"
+
+# Reset de antenas (por lector)
+Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/readers/lector-1/antennas/reset"
+
+# Reset de antena por ID
+Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/antennas/reader-1-antenna-1/reset"
+\end{lstlisting}
+
+\section{Notas Importantes}
+
+\begin{enumerate}
+    \item \textbf{Configuración por defecto:} Si no hay antenas configuradas en la base de datos, el gateway usa solo la antena 1.
+    
+    \item \textbf{Configuración del gateway:} Modo \texttt{AutoSetDenseReader}, búsqueda \texttt{SingleTarget}, sesión \texttt{1}, antena 1 con potencia y sensibilidad máximas.
+    
+    \item \textbf{Logs:} \texttt{docker-compose logs -f gateway}
+    
+    \item \textbf{Estado del lector:} \texttt{GET /api/readers/\{id\}/status}
+\end{enumerate}
+
+\end{document}

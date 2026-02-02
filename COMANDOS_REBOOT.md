@@ -46,8 +46,8 @@ curl -X POST http://localhost:8080/api/readers/lector-1/reboot
 
 ---
 
-### 3. Reset de Antenas
-Reinicia solo la configuración de antenas sin desconectar el lector.
+### 3. Reset de Antenas (por lector)
+Reinicia solo la configuración de antenas del lector sin desconectarlo.
 
 ```bash
 POST /api/readers/{id}/antennas/reset
@@ -68,6 +68,29 @@ curl -X POST http://localhost:8080/api/readers/lector-1/antennas/reset
 
 ---
 
+### 4. Reset de Antena por ID
+Reinicia la configuración de antenas del lector al que pertenece la antena especificada. Usa el ID de la antena (ej: `reader-1-antenna-1`).
+
+```bash
+POST /api/antennas/{antennaId}/reset
+```
+
+**Ejemplo:**
+```bash
+curl -X POST http://localhost:8080/api/antennas/reader-1-antenna-1/reset
+```
+
+**Respuesta:**
+```json
+{
+  "message": "Antenna configuration reset",
+  "antennaId": "reader-1-antenna-1",
+  "readerId": "reader-1"
+}
+```
+
+---
+
 ## Cuándo Usar Cada Comando
 
 ### 🔄 Reset (`/reset`)
@@ -80,9 +103,11 @@ curl -X POST http://localhost:8080/api/readers/lector-1/antennas/reset
 - **Qué hace:** Desconecta completamente, espera 5 segundos y reconecta
 - **Tiempo:** ~5-6 segundos
 
-### 📡 Reset de Antenas (`/antennas/reset`)
+### 📡 Reset de Antenas (`/readers/{id}/antennas/reset` o `/antennas/{antennaId}/reset`)
 - **Cuándo usar:** Cuando solo necesitas reiniciar la configuración de antenas sin desconectar
 - **Qué hace:** Detiene lectura, reconfigura antenas y reinicia lectura
+- **Por lector:** `POST /api/readers/{id}/antennas/reset`
+- **Por antena:** `POST /api/antennas/{antennaId}/reset` (usa el ID de la antena)
 - **Tiempo:** ~1 segundo
 
 ---
@@ -96,8 +121,11 @@ Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/readers/lector-1/
 # Reboot completo
 Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/readers/lector-1/reboot"
 
-# Reset de antenas
+# Reset de antenas (por lector)
 Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/readers/lector-1/antennas/reset"
+
+# Reset de antena por ID
+Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/antennas/reader-1-antenna-1/reset"
 ```
 
 ---
@@ -121,6 +149,7 @@ Invoke-RestMethod -Method POST -Uri "http://localhost:8080/api/readers/lector-1/
    ```bash
    GET /api/readers/{id}/status
    ```
+
 
 
 

@@ -13,45 +13,36 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Antenna {
-    
+
     @Id
     private String id;
-    
+
     @Column(name = "reader_id", nullable = false)
     private String readerId;
-    
-    @Column
+
+    @Column(length = 100)
     private String name;
-    
+
     @Column(name = "port_number", nullable = false)
     private Short portNumber;
-    
+
     @Column(nullable = false)
     private Boolean enabled = true;
-    
+
     @Column(name = "tx_power_dbm")
     private Double txPowerDbm;
-    
+
     @Column(name = "rx_sensitivity_dbm")
     private Double rxSensitivityDbm;
-    
-    @Column(name = "read_duration_seconds")
-    private Integer readDurationSeconds; // Tiempo de lectura en segundos para esta antena (null = sin límite)
-    
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
-    
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt = LocalDateTime.now();
-    
+
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
 }
-
-
-
-
-
-

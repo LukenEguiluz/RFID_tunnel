@@ -6,557 +6,275 @@ import com.rfidgateway.model.Reader;
 import com.rfidgateway.repository.AntennaRepository;
 import com.rfidgateway.repository.ReaderRepository;
 import com.rfidgateway.tag.TagEventService;
+import com.rfidgateway.tag.WebSocketEventService;
+import com.rfidgateway.session.SessionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
+import java.util.concurrent.*;
 
-/**
- * Gestor de lectores RFID
- */
 @Slf4j
 @Component
 public class ReaderManager {
-    
-    // Valores por defecto ideales para un túnel de RFID
-    private static final double DEFAULT_TUNNEL_TX_POWER_DBM = 28.0; // Potencia óptima para túnel (no máxima)
-    private static final double DEFAULT_TUNNEL_RX_SENSITIVITY_DBM = -70.0; // Sensibilidad óptima para túnel (no máxima)
-    
+
+    private final Map<String, ImpinjReader> readers = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService reconnectExecutor = Executors.newScheduledThreadPool(5);
+
     @Autowired
     private ReaderRepository readerRepository;
-    
+
     @Autowired
     private AntennaRepository antennaRepository;
-    
+
     @Autowired
     private TagEventService tagEventService;
-    
+
     @Autowired
-    private com.rfidgateway.session.SessionService sessionService;
-    
-    // Almacenar instancias de ImpinjReader por readerId
-    private final Map<String, ImpinjReader> readers = new ConcurrentHashMap<>();
-    
-    /**
-     * Inicia lectura de sesión en un lector
-     * @param readerId ID del lector
-     * @param sessionId ID de la sesión
-     */
-    public void startSessionReading(String readerId, String sessionId) {
-        log.info("Iniciando lectura de sesión {} en lector {}", sessionId, readerId);
-        
+    private WebSocketEventService webSocketEventService;
+
+    @Autowired(required = false)
+    private SessionService sessionService;
+
+    @PostConstruct
+    public void initialize() {
+        log.info("Inicializando ReaderManager...");
         try {
-            // Obtener configuración del lector desde BD
-            Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-            if (readerConfig == null) {
-                log.error("Lector {} no encontrado en la base de datos", readerId);
-                return;
-            }
-            
-            // Verificar que el lector esté conectado
-            if (readerConfig.getIsConnected() == null || !readerConfig.getIsConnected()) {
-                log.warn("Lector {} no está conectado. Intentando conectar...", readerId);
-                connectReader(readerConfig);
-            }
-            
-            // Obtener o crear instancia de ImpinjReader
-            ImpinjReader reader = readers.get(readerId);
-            if (reader == null || !reader.isConnected()) {
-                log.warn("Lector {} no tiene instancia conectada. Reconectando...", readerId);
-                connectReader(readerConfig);
-                reader = readers.get(readerId);
-            }
-            
-            if (reader == null || !reader.isConnected()) {
-                log.error("No se pudo conectar al lector {} para iniciar sesión {}", readerId, sessionId);
-                return;
-            }
-            
-            // Obtener configuración por defecto
-            Settings settings = reader.queryDefaultSettings();
-            
-            // Configurar modo de lectura
-            settings.setReaderMode(ReaderMode.AutoSetDenseReader);
-            settings.setSearchMode(SearchMode.SingleTarget);
-            settings.setSession((short) 1);
-            
-            // Configurar reporte
-            ReportConfig report = settings.getReport();
-            report.setMode(ReportMode.Individual);
-            report.setIncludeAntennaPortNumber(true);
-            report.setIncludePeakRssi(true);
-            report.setIncludeLastSeenTime(true);
-            report.setIncludeSeenCount(true);
-            
-            // Obtener antenas habilitadas desde BD
-            List<Antenna> antennas = antennaRepository.findByReaderIdAndEnabledTrue(readerId);
-            
-            if (antennas.isEmpty()) {
-                log.warn("No hay antenas habilitadas para el lector {}", readerId);
-                return;
-            }
-            
-            // Configurar antenas
-            AntennaConfigGroup antennaConfigGroup = settings.getAntennas();
-            antennaConfigGroup.disableAll();
-            
-            for (Antenna antenna : antennas) {
-                short portNumber = antenna.getPortNumber();
-                AntennaConfig antennaConfig = antennaConfigGroup.getAntenna(portNumber);
-                
-                if (antennaConfig != null) {
-                    antennaConfig.setEnabled(true);
-                    
-                    // Configurar potencia - NUNCA usar potencia máxima, siempre establecer un valor numérico
-                    // Según SDK Octane, siempre debemos establecer setIsMaxTxPower(false) y un valor específico
-                    double powerToUse;
-                    
-                    // Si useDefaultPower está activado, siempre usar la potencia general (ignorar potencia individual)
-                    if (readerConfig.getUseDefaultPower() != null && readerConfig.getUseDefaultPower() 
-                        && readerConfig.getDefaultTxPowerDbm() != null) {
-                        // Usar potencia por defecto del lector (forzar para todas las antenas)
-                        powerToUse = readerConfig.getDefaultTxPowerDbm();
-                        log.debug("Usando potencia general del lector (forzada): {} dBm", powerToUse);
-                    } else if (antenna.getTxPowerDbm() != null) {
-                        // Usar potencia individual de la antena
-                        powerToUse = antenna.getTxPowerDbm();
-                        log.debug("Usando potencia individual de antena: {} dBm", powerToUse);
-                    } else if (readerConfig.getDefaultTxPowerDbm() != null) {
-                        // Si no hay potencia individual pero hay potencia general configurada, usarla
-                        powerToUse = readerConfig.getDefaultTxPowerDbm();
-                        log.debug("Usando potencia general del lector: {} dBm", powerToUse);
-                    } else {
-                        // Usar valor por defecto para túnel de RFID según SDK (nunca máximo)
-                        powerToUse = DEFAULT_TUNNEL_TX_POWER_DBM;
-                        log.debug("Usando potencia por defecto para túnel: {} dBm", powerToUse);
-                    }
-                    
-                    // Verificar límite máximo si está configurado
-                    if (readerConfig.getMaxTxPowerDbm() != null) {
-                        powerToUse = Math.min(powerToUse, readerConfig.getMaxTxPowerDbm());
-                    }
-                    
-                    // SIEMPRE establecer potencia numérica, NUNCA usar máxima
-                    antennaConfig.setIsMaxTxPower(false);
-                    antennaConfig.setTxPowerinDbm(powerToUse);
-                    log.info("Antena {} puerto {} configurada con potencia: {} dBm (NO máxima)", 
-                        antenna.getId(), portNumber, powerToUse);
-                    
-                    // Configurar sensibilidad - NUNCA usar sensibilidad máxima, siempre establecer un valor numérico
-                    // Según SDK Octane, siempre debemos establecer setIsMaxRxSensitivity(false) y un valor específico
-                    double sensitivityToUse;
-                    
-                    if (readerConfig.getDefaultRxSensitivityDbm() != null) {
-                        // Usar sensibilidad por defecto del lector
-                        sensitivityToUse = readerConfig.getDefaultRxSensitivityDbm();
-                        log.debug("Usando sensibilidad general del lector: {} dBm", sensitivityToUse);
-                    } else if (antenna.getRxSensitivityDbm() != null) {
-                        // Usar sensibilidad individual de la antena
-                        sensitivityToUse = antenna.getRxSensitivityDbm();
-                        log.debug("Usando sensibilidad individual de antena: {} dBm", sensitivityToUse);
-                    } else {
-                        // Usar valor por defecto para túnel de RFID según SDK (nunca máxima)
-                        sensitivityToUse = DEFAULT_TUNNEL_RX_SENSITIVITY_DBM;
-                        log.debug("Usando sensibilidad por defecto para túnel: {} dBm", sensitivityToUse);
-                    }
-                    
-                    // SIEMPRE establecer sensibilidad numérica, NUNCA usar máxima
-                    antennaConfig.setIsMaxRxSensitivity(false);
-                    antennaConfig.setRxSensitivityinDbm(sensitivityToUse);
-                    log.info("Antena {} puerto {} configurada con sensibilidad: {} dBm (NO máxima)", 
-                        antenna.getId(), portNumber, sensitivityToUse);
-                    
-                    log.debug("Antena {} configurada para lector {} - Puerto: {}, Potencia: {}, Sensibilidad: {}", 
-                        antenna.getId(), readerId, portNumber,
-                        antennaConfig.getIsMaxTxPower() ? "MAX" : antennaConfig.getTxPowerinDbm() + " dBm",
-                        antennaConfig.getIsMaxRxSensitivity() ? "MAX" : antennaConfig.getRxSensitivityinDbm() + " dBm");
+            List<Reader> readersList = readerRepository.findByEnabledTrue();
+            for (Reader config : readersList) {
+                try {
+                    connectReader(config);
+                } catch (Exception e) {
+                    log.error("Error al conectar lector {}: {}", config.getId(), e.getMessage());
                 }
             }
-            
-            // Configurar listener si no está configurado
-            TagReportListener currentListener = reader.getTagReportListener();
-            if (currentListener == null || !(currentListener instanceof GatewayTagReportListener)) {
-                GatewayTagReportListener listener = new GatewayTagReportListener(readerId, tagEventService);
-                listener.setSessionService(sessionService);
-                reader.setTagReportListener(listener);
-                
-                // Configurar connection lost listener
-                GatewayConnectionLostListener connectionLostListener = 
-                    new GatewayConnectionLostListener(readerId, this);
-                reader.setConnectionLostListener(connectionLostListener);
-            }
-            
-            // Aplicar configuración
-            reader.applySettings(settings);
-            log.info("Configuración aplicada para lector {}", readerId);
-            
-            // Iniciar lectura
-            reader.start();
-            log.info("Lectura iniciada para lector {} en sesión {}", readerId, sessionId);
-            
-            // Actualizar estado en BD
-            readerConfig.setIsReading(true);
-            readerRepository.save(readerConfig);
-            
-        } catch (OctaneSdkException e) {
-            log.error("Error del SDK al iniciar lectura para lector {}: {}", readerId, e.getMessage(), e);
+            log.info("ReaderManager inicializado con {} lectores", readersList.size());
         } catch (Exception e) {
-            log.error("Error al iniciar lectura para lector {}: {}", readerId, e.getMessage(), e);
+            log.error("Error en inicialización de ReaderManager: {}", e.getMessage());
         }
     }
-    
-    /**
-     * Detiene lectura de sesión en un lector
-     * @param readerId ID del lector
-     */
-    public void stopSessionReading(String readerId) {
-        log.info("Deteniendo lectura de sesión en lector {}", readerId);
-        
+
+    @PreDestroy
+    public void shutdown() {
+        log.info("Cerrando ReaderManager...");
+        reconnectExecutor.shutdown();
         try {
-            ImpinjReader reader = readers.get(readerId);
-            if (reader != null && reader.isConnected()) {
-                reader.stop();
-                log.info("Lectura detenida para lector {}", readerId);
-                
-                // Actualizar estado en BD
-                Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-                if (readerConfig != null) {
-                    readerConfig.setIsReading(false);
-                    readerRepository.save(readerConfig);
-                }
-            } else {
-                log.warn("Lector {} no está conectado, no se puede detener lectura", readerId);
+            if (!reconnectExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                reconnectExecutor.shutdownNow();
             }
-        } catch (OctaneSdkException e) {
-            log.error("Error del SDK al detener lectura para lector {}: {}", readerId, e.getMessage(), e);
-        } catch (Exception e) {
-            log.error("Error al detener lectura para lector {}: {}", readerId, e.getMessage(), e);
-        }
-    }
-    
-    /**
-     * Reinicia configuración de antenas
-     * @param readerId ID del lector
-     */
-    public void resetAntennas(String readerId) {
-        log.info("Reiniciando configuración de antenas en lector {}", readerId);
-        // Por ahora, simplemente reconectamos el lector
-        Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-        if (readerConfig != null) {
-            connectReader(readerConfig);
-        }
-    }
-    
-    /**
-     * Inicia lectura en un lector
-     * @param readerId ID del lector
-     */
-    public void startReader(String readerId) {
-        log.info("Iniciando lectura en lector {}", readerId);
-        
-        Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-        if (readerConfig != null) {
-            connectReader(readerConfig);
-        } else {
-            log.error("Lector {} no encontrado", readerId);
-        }
-    }
-    
-    /**
-     * Detiene lectura en un lector
-     * @param readerId ID del lector
-     */
-    public void stopReader(String readerId) {
-        log.info("Deteniendo lectura en lector {}", readerId);
-        stopSessionReading(readerId);
-    }
-    
-    /**
-     * Reinicia un lector (desconecta y reconecta)
-     * @param readerId ID del lector
-     */
-    public void resetReader(String readerId) {
-        log.info("Reiniciando lector {}", readerId);
-        
-        disconnectReader(readerId);
-        
-        try {
-            Thread.sleep(1000); // Esperar 1 segundo antes de reconectar
         } catch (InterruptedException e) {
+            reconnectExecutor.shutdownNow();
             Thread.currentThread().interrupt();
         }
-        
-        Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-        if (readerConfig != null) {
-            connectReader(readerConfig);
-        }
-    }
-    
-    /**
-     * Reinicia completamente un lector (reboot)
-     * @param readerId ID del lector
-     */
-    public void rebootReader(String readerId) {
-        log.info("Iniciando reboot completo del lector {}", readerId);
-        
-        try {
-            // Obtener configuración del lector
-            Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-            if (readerConfig == null) {
-                log.error("Lector {} no encontrado para reboot", readerId);
-                return;
-            }
-            
-            // Detener lectura si está activa
-            ImpinjReader reader = readers.get(readerId);
-            if (reader != null && reader.isConnected()) {
-                try {
-                    // Detener lectura primero
-                    if (readerConfig.getIsReading() != null && readerConfig.getIsReading()) {
-                        reader.stop();
-                        log.info("Lectura detenida antes del reboot para lector {}", readerId);
-                    }
-                    
-                    // Intentar hacer reboot del lector físico usando el SDK
-                    // Nota: El SDK de Octane no tiene un método directo de reboot,
-                    // así que desconectamos y esperamos más tiempo para que el lector se reinicie
-                    log.info("Desconectando lector {} para reboot", readerId);
-                    reader.disconnect();
-                    
-                } catch (OctaneSdkException e) {
-                    log.warn("Error al desconectar lector {} antes del reboot: {}", readerId, e.getMessage());
-                }
-            }
-            
-            // Limpiar instancia
-            readers.remove(readerId);
-            
-            // Actualizar estado en BD
-            readerConfig.setIsConnected(false);
-            readerConfig.setIsReading(false);
-            readerRepository.save(readerConfig);
-            
-            // Esperar 5 segundos para que el lector se reinicie completamente
-            log.info("Esperando 5 segundos para que el lector {} se reinicie...", readerId);
+        for (Map.Entry<String, ImpinjReader> entry : readers.entrySet()) {
             try {
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.warn("Espera interrumpida durante reboot del lector {}", readerId);
-            }
-            
-            // Reconectar el lector
-            log.info("Reconectando lector {} después del reboot", readerId);
-            connectReader(readerConfig);
-            
-            log.info("Reboot completado para lector {}", readerId);
-            
-        } catch (Exception e) {
-            log.error("Error durante reboot del lector {}: {}", readerId, e.getMessage(), e);
-        }
-    }
-    
-    /**
-     * Conecta un lector
-     * @param readerConfig Configuración del lector
-     */
-    public void connectReader(Reader readerConfig) {
-        String readerId = readerConfig.getId();
-        String hostname = readerConfig.getHostname();
-        
-        log.info("Conectando lector {} en {}", readerId, hostname);
-        
-        try {
-            // Si ya hay una instancia conectada, desconectarla primero
-            ImpinjReader existingReader = readers.get(readerId);
-            if (existingReader != null && existingReader.isConnected()) {
-                try {
-                    existingReader.disconnect();
-                } catch (Exception e) {
-                    log.warn("Error al desconectar lector existente {}: {}", readerId, e.getMessage());
+                ImpinjReader r = entry.getValue();
+                if (r.isConnected()) {
+                    r.stop();
+                    r.disconnect();
                 }
+            } catch (Exception e) {
+                log.warn("Error al desconectar lector {}: {}", entry.getKey(), e.getMessage());
             }
-            
-            // Crear nueva instancia
+        }
+        readers.clear();
+    }
+
+    public void connectReader(Reader config) {
+        String readerId = config.getId();
+        try {
             ImpinjReader reader = new ImpinjReader();
-            
-            // Conectar
-            reader.connect(hostname);
-            log.info("Conexión establecida con lector {} en {}", readerId, hostname);
-            
-            // Almacenar instancia
-            readers.put(readerId, reader);
-            
-            // Configurar listeners
-            GatewayTagReportListener tagListener = new GatewayTagReportListener(readerId, tagEventService);
-            tagListener.setSessionService(sessionService);
-            reader.setTagReportListener(tagListener);
-            
-            GatewayConnectionLostListener connectionLostListener = 
-                new GatewayConnectionLostListener(readerId, this);
-            reader.setConnectionLostListener(connectionLostListener);
-            
-            // Obtener configuración por defecto
+            reader.connect(config.getHostname());
+
             Settings settings = reader.queryDefaultSettings();
-            
-            // Configurar modo básico
-            settings.setReaderMode(ReaderMode.AutoSetDenseReader);
-            settings.setSearchMode(SearchMode.SingleTarget);
-            settings.setSession((short) 1);
-            
-            // Configurar reporte
-            ReportConfig report = settings.getReport();
-            report.setMode(ReportMode.Individual);
-            report.setIncludeAntennaPortNumber(true);
-            report.setIncludePeakRssi(true);
-            report.setIncludeLastSeenTime(true);
-            report.setIncludeSeenCount(true);
-            
-            // Configurar antenas habilitadas
-            List<Antenna> antennas = antennaRepository.findByReaderIdAndEnabledTrue(readerId);
-            AntennaConfigGroup antennaConfigGroup = settings.getAntennas();
-            antennaConfigGroup.disableAll();
-            
-            for (Antenna antenna : antennas) {
-                short portNumber = antenna.getPortNumber();
-                AntennaConfig antennaConfig = antennaConfigGroup.getAntenna(portNumber);
-                
-                if (antennaConfig != null) {
-                    antennaConfig.setEnabled(true);
-                    
-                    // Configurar potencia - NUNCA usar potencia máxima, siempre establecer un valor numérico
-                    // Según SDK Octane, siempre debemos establecer setIsMaxTxPower(false) y un valor específico
-                    double powerToUse;
-                    
-                    // Si useDefaultPower está activado, siempre usar la potencia general (ignorar potencia individual)
-                    if (readerConfig.getUseDefaultPower() != null && readerConfig.getUseDefaultPower() 
-                        && readerConfig.getDefaultTxPowerDbm() != null) {
-                        // Usar potencia por defecto del lector (forzar para todas las antenas)
-                        powerToUse = readerConfig.getDefaultTxPowerDbm();
-                    } else if (antenna.getTxPowerDbm() != null) {
-                        // Usar potencia individual de la antena
-                        powerToUse = antenna.getTxPowerDbm();
-                    } else if (readerConfig.getDefaultTxPowerDbm() != null) {
-                        // Si no hay potencia individual pero hay potencia general configurada, usarla
-                        powerToUse = readerConfig.getDefaultTxPowerDbm();
-                    } else {
-                        // Usar valor por defecto para túnel de RFID según SDK (nunca máximo)
-                        powerToUse = DEFAULT_TUNNEL_TX_POWER_DBM;
-                    }
-                    
-                    // Verificar límite máximo si está configurado
-                    if (readerConfig.getMaxTxPowerDbm() != null) {
-                        powerToUse = Math.min(powerToUse, readerConfig.getMaxTxPowerDbm());
-                    }
-                    
-                    // SIEMPRE establecer potencia numérica, NUNCA usar máxima
-                    antennaConfig.setIsMaxTxPower(false);
-                    antennaConfig.setTxPowerinDbm(powerToUse);
-                    
-                    // Configurar sensibilidad - NUNCA usar sensibilidad máxima, siempre establecer un valor numérico
-                    double sensitivityToUse;
-                    
-                    if (readerConfig.getDefaultRxSensitivityDbm() != null) {
-                        // Usar sensibilidad por defecto del lector
-                        sensitivityToUse = readerConfig.getDefaultRxSensitivityDbm();
-                    } else if (antenna.getRxSensitivityDbm() != null) {
-                        // Usar sensibilidad individual de la antena
-                        sensitivityToUse = antenna.getRxSensitivityDbm();
-                    } else {
-                        // Usar valor por defecto para túnel de RFID según SDK (nunca máxima)
-                        sensitivityToUse = DEFAULT_TUNNEL_RX_SENSITIVITY_DBM;
-                    }
-                    
-                    // SIEMPRE establecer sensibilidad numérica, NUNCA usar máxima
-                    antennaConfig.setIsMaxRxSensitivity(false);
-                    antennaConfig.setRxSensitivityinDbm(sensitivityToUse);
+            configureReaderSettings(readerId, settings);
+
+            GatewayTagReportListener tagListener = new GatewayTagReportListener(readerId, tagEventService);
+            if (sessionService != null) {
+                tagListener.setSessionService(sessionService);
+            }
+            reader.setTagReportListener(tagListener);
+            reader.setConnectionLostListener(new GatewayConnectionLostListener(readerId, this));
+
+            reader.applySettings(settings);
+            Thread.sleep(500);
+            reader.start();
+
+            readers.put(readerId, reader);
+            updateReaderStatus(readerId, true, true);
+            webSocketEventService.notifyReaderReconnected(readerId, config.getName());
+            log.info("Lector {} conectado y leyendo", readerId);
+
+        } catch (OctaneSdkException e) {
+            log.error("Error SDK al conectar lector {}: {}", readerId, e.getMessage());
+            updateReaderStatus(readerId, false, false);
+            throw new RuntimeException("Error al conectar lector: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Error al conectar lector {}: {}", readerId, e.getMessage());
+            updateReaderStatus(readerId, false, false);
+            throw new RuntimeException("Error al conectar lector: " + e.getMessage());
+        }
+    }
+
+    private void configureReaderSettings(String readerId, Settings settings) throws OctaneSdkException {
+        settings.setReaderMode(ReaderMode.AutoSetDenseReader);
+        settings.setSearchMode(SearchMode.SingleTarget);
+        settings.setSession((short) 1);
+
+        ReportConfig report = settings.getReport();
+        report.setMode(ReportMode.Individual);
+        report.setIncludeAntennaPortNumber(true);
+        report.setIncludePeakRssi(true);
+        report.setIncludeLastSeenTime(true);
+        report.setIncludeSeenCount(true);
+
+        AntennaConfigGroup antennas = settings.getAntennas();
+        antennas.disableAll();
+
+        List<Antenna> enabledAntennas = antennaRepository.findByReaderIdAndEnabledTrue(readerId);
+        if (enabledAntennas.isEmpty()) {
+            short[] ports = {1};
+            antennas.enableById(ports);
+            AntennaConfig ac = antennas.getAntenna((short) 1);
+            ac.setIsMaxTxPower(true);
+            ac.setIsMaxRxSensitivity(true);
+        } else {
+            short[] ports = new short[enabledAntennas.size()];
+            for (int i = 0; i < enabledAntennas.size(); i++) {
+                ports[i] = enabledAntennas.get(i).getPortNumber();
+                AntennaConfig ac = antennas.getAntenna(ports[i]);
+                if (ac != null) {
+                    ac.setIsMaxTxPower(true);
+                    ac.setIsMaxRxSensitivity(true);
                 }
             }
-            
-            // Aplicar configuración
-            reader.applySettings(settings);
-            
-            // Actualizar estado en BD
-            readerConfig.setIsConnected(true);
-            readerConfig.setIsReading(false); // No iniciar lectura automáticamente, solo con sesiones
-            readerRepository.save(readerConfig);
-            
-            log.info("Lector {} conectado y configurado exitosamente", readerId);
-            
-        } catch (OctaneSdkException e) {
-            log.error("Error del SDK al conectar lector {}: {}", readerId, e.getMessage(), e);
-            
-            // Actualizar estado en BD
-            readerConfig.setIsConnected(false);
-            readerConfig.setIsReading(false);
-            readerRepository.save(readerConfig);
-            
-            // Limpiar instancia si existe
-            readers.remove(readerId);
-            
-        } catch (Exception e) {
-            log.error("Error al conectar lector {}: {}", readerId, e.getMessage(), e);
-            
-            // Actualizar estado en BD
-            readerConfig.setIsConnected(false);
-            readerConfig.setIsReading(false);
-            readerRepository.save(readerConfig);
-            
-            // Limpiar instancia si existe
-            readers.remove(readerId);
+            antennas.enableById(ports);
         }
     }
-    
-    /**
-     * Desconecta un lector
-     * @param readerId ID del lector
-     */
+
     public void disconnectReader(String readerId) {
-        log.info("Desconectando lector {}", readerId);
-        
-        try {
-            ImpinjReader reader = readers.get(readerId);
-            if (reader != null && reader.isConnected()) {
-                reader.stop(); // Detener lectura primero
-                reader.disconnect();
-                log.info("Lector {} desconectado", readerId);
+        ImpinjReader reader = readers.remove(readerId);
+        if (reader != null) {
+            try {
+                if (reader.isConnected()) {
+                    reader.stop();
+                    reader.disconnect();
+                }
+            } catch (Exception e) {
+                log.warn("Error al desconectar {}: {}", readerId, e.getMessage());
             }
-            
-            // Limpiar instancias
-            readers.remove(readerId);
-            
-            // Actualizar estado en BD
-            Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-            if (readerConfig != null) {
-                readerConfig.setIsConnected(false);
-                readerConfig.setIsReading(false);
-                readerRepository.save(readerConfig);
+        }
+        updateReaderStatus(readerId, false, false);
+    }
+
+    public void startReader(String readerId) {
+        ImpinjReader reader = readers.get(readerId);
+        if (reader != null && reader.isConnected()) {
+            try {
+                reader.start();
+                updateReaderStatus(readerId, true, true);
+            } catch (Exception e) {
+                log.error("Error al iniciar lectura {}: {}", readerId, e.getMessage());
             }
-            
-        } catch (Exception e) {
-            log.error("Error al desconectar lector {}: {}", readerId, e.getMessage(), e);
         }
     }
-    
-    /**
-     * Maneja pérdida de conexión con un lector
-     * @param readerId ID del lector
-     */
-    public void handleConnectionLost(String readerId) {
-        log.warn("Manejando pérdida de conexión con lector {}", readerId);
-        
-        // Limpiar instancias
-        readers.remove(readerId);
-        
-        // Actualizar estado en BD
-        Reader readerConfig = readerRepository.findById(readerId).orElse(null);
-        if (readerConfig != null) {
-            readerConfig.setIsConnected(false);
-            readerConfig.setIsReading(false);
-            readerRepository.save(readerConfig);
+
+    public void stopReader(String readerId) {
+        ImpinjReader reader = readers.get(readerId);
+        if (reader != null && reader.isConnected()) {
+            try {
+                reader.stop();
+                updateReaderStatus(readerId, true, false);
+            } catch (Exception e) {
+                log.error("Error al detener lectura {}: {}", readerId, e.getMessage());
+            }
         }
+    }
+
+    public void resetReader(String readerId) {
+        Optional<Reader> configOpt = readerRepository.findById(readerId);
+        if (configOpt.isEmpty()) return;
+        Reader config = configOpt.get();
+        disconnectReader(readerId);
+        try {
+            Thread.sleep(2000);
+            connectReader(config);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Reset interrumpido para {}", readerId);
+        }
+    }
+
+    public void rebootReader(String readerId) {
+        Optional<Reader> configOpt = readerRepository.findById(readerId);
+        if (configOpt.isEmpty()) return;
+        Reader config = configOpt.get();
+        disconnectReader(readerId);
+        try {
+            Thread.sleep(5000);
+            connectReader(config);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Reboot interrumpido para {}", readerId);
+        }
+    }
+
+    public void resetAntennas(String readerId) {
+        ImpinjReader reader = readers.get(readerId);
+        if (reader == null || !reader.isConnected()) {
+            log.warn("Lector {} no conectado, no se puede resetear antenas", readerId);
+            return;
+        }
+        try {
+            reader.stop();
+            Settings settings = reader.queryDefaultSettings();
+            configureReaderSettings(readerId, settings);
+            reader.applySettings(settings);
+            Thread.sleep(500);
+            reader.start();
+            updateReaderStatus(readerId, true, true);
+            log.info("Antenas del lector {} reseteadas correctamente", readerId);
+        } catch (Exception e) {
+            log.error("Error al resetear antenas del lector {}: {}", readerId, e.getMessage());
+        }
+    }
+
+    public void handleConnectionLost(String readerId) {
+        readers.remove(readerId);
+        updateReaderStatus(readerId, false, false);
+        webSocketEventService.notifyReaderDisconnected(readerId,
+            readerRepository.findById(readerId).map(Reader::getName).orElse(readerId));
+        scheduleReconnect(readerId);
+    }
+
+    public void scheduleReconnect(String readerId) {
+        Optional<Reader> configOpt = readerRepository.findById(readerId);
+        if (configOpt.isEmpty() || !Boolean.TRUE.equals(configOpt.get().getEnabled())) {
+            return;
+        }
+        Reader config = configOpt.get();
+        log.info("Programando reconexión del lector {} en 30 segundos", readerId);
+        reconnectExecutor.schedule(() -> {
+            try {
+                connectReader(config);
+            } catch (Exception e) {
+                log.warn("Reconexión fallida para {}, reintentando más tarde: {}", readerId, e.getMessage());
+                scheduleReconnect(readerId);
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void updateReaderStatus(String readerId, boolean connected, boolean reading) {
+        readerRepository.findById(readerId).ifPresent(r -> {
+            r.setIsConnected(connected);
+            r.setIsReading(reading);
+            if (connected) r.setLastSeen(java.time.LocalDateTime.now());
+            readerRepository.save(r);
+        });
     }
 }
