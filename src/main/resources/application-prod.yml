@@ -4,6 +4,10 @@ spring:
     username: ${DB_USER:rfiduser}
     password: ${DB_PASSWORD}
 
+# Opcional: filtrar lecturas con señal débil. Ej: -70 para ignorar tags con RSSI < -70 dBm
+# rfid:
+#   rssi-min-dbm: -70
+
 logging:
   level:
     root: WARN

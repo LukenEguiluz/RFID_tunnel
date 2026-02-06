@@ -18,14 +18,20 @@ public class GatewayTagReportListener implements TagReportListener {
     private final String readerId;
     private final TagEventService tagEventService;
     private SessionService sessionService;
-    
+    /** Umbral mínimo de RSSI (dBm). Si no es null, se ignoran lecturas con rssi por debajo de este valor (señal débil/lejos). */
+    private Double rssiMinDbm;
+
     public GatewayTagReportListener(String readerId, TagEventService tagEventService) {
         this.readerId = readerId;
         this.tagEventService = tagEventService;
     }
-    
+
     public void setSessionService(SessionService sessionService) {
         this.sessionService = sessionService;
+    }
+
+    public void setRssiMinDbm(Double rssiMinDbm) {
+        this.rssiMinDbm = rssiMinDbm;
     }
     
     @Override
@@ -53,11 +59,18 @@ public class GatewayTagReportListener implements TagReportListener {
                 Double phase = tag.isRfPhaseAnglePresent() 
                     ? tag.getPhaseAngleInRadians() 
                     : null;
+
+                // Filtrar por umbral de RSSI: ignorar lecturas con señal muy débil (tag lejos)
+                if (rssiMinDbm != null && rssi != null && rssi < rssiMinDbm) {
+                    log.debug("Tag ignorado (RSSI {} dBm < umbral {} dBm) - Lector: {}, EPC: {}", 
+                            rssi, rssiMinDbm, readerId, epc);
+                    continue;
+                }
                 
                 log.info("TAG DETECTADO - Lector: {}, EPC: {}, Antena: {}, RSSI: {} dBm", 
                         readerId, epc, antennaPort, rssi);
                 
-                // Procesar evento de tag (siempre guardar en BD)
+                // Procesar evento de tag (guardar en BD y notificar WebSocket/SSE)
                 tagEventService.processTagEvent(
                     readerId,
                     epc,

@@ -10,6 +10,7 @@ import com.rfidgateway.tag.WebSocketEventService;
 import com.rfidgateway.session.SessionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -40,6 +41,10 @@ public class ReaderManager {
 
     @Autowired(required = false)
     private SessionService sessionService;
+
+    /** Umbral mínimo RSSI (dBm). Lecturas por debajo se ignoran. Vacío = no filtrar. */
+    @Value("${rfid.rssi-min-dbm:}")
+    private String rssiMinDbmConfig;
 
     @PostConstruct
     public void initialize() {
@@ -97,6 +102,13 @@ public class ReaderManager {
             GatewayTagReportListener tagListener = new GatewayTagReportListener(readerId, tagEventService);
             if (sessionService != null) {
                 tagListener.setSessionService(sessionService);
+            }
+            if (rssiMinDbmConfig != null && !rssiMinDbmConfig.isBlank()) {
+                try {
+                    tagListener.setRssiMinDbm(Double.parseDouble(rssiMinDbmConfig.trim()));
+                } catch (NumberFormatException e) {
+                    log.warn("rfid.rssi-min-dbm inválido '{}', se ignora el filtro RSSI", rssiMinDbmConfig);
+                }
             }
             reader.setTagReportListener(tagListener);
             reader.setConnectionLostListener(new GatewayConnectionLostListener(readerId, this));

@@ -1,1 +1,4 @@
-
+# Umbral mínimo de RSSI (dBm). Lecturas con señal más débil se ignoran.
+# Ejemplo: -70 = ignorar tags con RSSI < -70 dBm (muy lejos). Dejar vacío para no filtrar.
+rfid:
+  rssi-min-dbm:
