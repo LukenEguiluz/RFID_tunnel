@@ -26,6 +26,8 @@ public class ReaderManager {
 
     private final Map<String, ImpinjReader> readers = new ConcurrentHashMap<>();
     private final ScheduledExecutorService reconnectExecutor = Executors.newScheduledThreadPool(5);
+    /** Tareas programadas para auto-detener lectura; se cancelan si el usuario frena antes. */
+    private final Map<String, ScheduledFuture<?>> readingAutoStopFutures = new ConcurrentHashMap<>();
 
     @Autowired
     private ReaderRepository readerRepository;
@@ -45,6 +47,10 @@ public class ReaderManager {
     /** Umbral mínimo RSSI (dBm). Lecturas por debajo se ignoran. Vacío = no filtrar. */
     @Value("${rfid.rssi-min-dbm:}")
     private String rssiMinDbmConfig;
+
+    /** Minutos tras los cuales se detiene la lectura automáticamente (0 = sin límite). */
+    @Value("${rfid.reading-timeout-minutes:2}")
+    private int readingTimeoutMinutes;
 
     @PostConstruct
     public void initialize() {
@@ -115,12 +121,13 @@ public class ReaderManager {
 
             reader.applySettings(settings);
             Thread.sleep(500);
-            reader.start();
+            // No iniciar lectura al conectar: dejar en idle hasta que el usuario inicie lectura
+            // reader.start() se llama solo con startReader()
 
             readers.put(readerId, reader);
-            updateReaderStatus(readerId, true, true);
+            updateReaderStatus(readerId, true, false);
             webSocketEventService.notifyReaderReconnected(readerId, config.getName());
-            log.info("Lector {} conectado y leyendo", readerId);
+            log.info("Lector {} conectado (idle, esperando inicio de lectura)", readerId);
 
         } catch (OctaneSdkException e) {
             log.error("Error SDK al conectar lector {}: {}", readerId, e.getMessage());
@@ -170,6 +177,7 @@ public class ReaderManager {
     }
 
     public void disconnectReader(String readerId) {
+        cancelReadingAutoStop(readerId);
         ImpinjReader reader = readers.remove(readerId);
         if (reader != null) {
             try {
@@ -188,8 +196,10 @@ public class ReaderManager {
         ImpinjReader reader = readers.get(readerId);
         if (reader != null && reader.isConnected()) {
             try {
+                cancelReadingAutoStop(readerId);
                 reader.start();
                 updateReaderStatus(readerId, true, true);
+                scheduleReadingAutoStop(readerId);
             } catch (Exception e) {
                 log.error("Error al iniciar lectura {}: {}", readerId, e.getMessage());
             }
@@ -200,12 +210,33 @@ public class ReaderManager {
         ImpinjReader reader = readers.get(readerId);
         if (reader != null && reader.isConnected()) {
             try {
+                cancelReadingAutoStop(readerId);
                 reader.stop();
                 updateReaderStatus(readerId, true, false);
             } catch (Exception e) {
                 log.error("Error al detener lectura {}: {}", readerId, e.getMessage());
             }
         }
+    }
+
+    private void cancelReadingAutoStop(String readerId) {
+        ScheduledFuture<?> future = readingAutoStopFutures.remove(readerId);
+        if (future != null) {
+            future.cancel(false);
+        }
+    }
+
+    private void scheduleReadingAutoStop(String readerId) {
+        if (readingTimeoutMinutes <= 0) {
+            return;
+        }
+        cancelReadingAutoStop(readerId);
+        ScheduledFuture<?> future = reconnectExecutor.schedule(() -> {
+            readingAutoStopFutures.remove(readerId);
+            log.info("Auto-stop: deteniendo lectura del lector {} tras {} min", readerId, readingTimeoutMinutes);
+            stopReader(readerId);
+        }, readingTimeoutMinutes, TimeUnit.MINUTES);
+        readingAutoStopFutures.put(readerId, future);
     }
 
     public void resetReader(String readerId) {
@@ -243,14 +274,15 @@ public class ReaderManager {
             return;
         }
         try {
+            cancelReadingAutoStop(readerId);
             reader.stop();
             Settings settings = reader.queryDefaultSettings();
             configureReaderSettings(readerId, settings);
             reader.applySettings(settings);
             Thread.sleep(500);
-            reader.start();
-            updateReaderStatus(readerId, true, true);
-            log.info("Antenas del lector {} reseteadas correctamente", readerId);
+            // Dejar en idle como al conectar
+            updateReaderStatus(readerId, true, false);
+            log.info("Antenas del lector {} reseteadas (idle)", readerId);
         } catch (Exception e) {
             log.error("Error al resetear antenas del lector {}: {}", readerId, e.getMessage());
         }

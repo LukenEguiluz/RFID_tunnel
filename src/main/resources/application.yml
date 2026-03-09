@@ -1,4 +1,12 @@
+# Desactivar página de error Whitelabel; usar nuestra plantilla error.html
+server:
+  error:
+    whitelabel:
+      enabled: false
+
 # Umbral mínimo de RSSI (dBm). Lecturas con señal más débil se ignoran.
 # Ejemplo: -70 = ignorar tags con RSSI < -70 dBm (muy lejos). Dejar vacío para no filtrar.
+# Tiempo máximo de lectura en minutos; al cumplirse se detiene automáticamente (0 = sin límite).
 rfid:
   rssi-min-dbm:
+  reading-timeout-minutes: 2

@@ -3,10 +3,16 @@ spring:
     url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:rfidgateway}
     username: ${DB_USER:rfiduser}
     password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
 
 # Opcional: filtrar lecturas con señal débil. Ej: -70 para ignorar tags con RSSI < -70 dBm
 # rfid:
 #   rssi-min-dbm: -70
+# Tiempo máximo de lectura (min); 0 = sin auto-stop
+#   reading-timeout-minutes: 2
 
 logging:
   level:

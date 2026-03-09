@@ -49,6 +49,45 @@ public class ReaderController {
             .orElse(ResponseEntity.notFound().build());
     }
 
+    @PostMapping
+    public ResponseEntity<Reader> createReader(@RequestBody Reader reader) {
+        if (reader.getId() == null || reader.getId().isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        if (readerRepository.existsById(reader.getId())) {
+            return ResponseEntity.status(409).body(null);
+        }
+        reader.setIsConnected(false);
+        reader.setIsReading(false);
+        return ResponseEntity.ok(readerRepository.save(reader));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Reader> updateReader(@PathVariable String id, @RequestBody Reader reader) {
+        return readerRepository.findById(id)
+            .map(existing -> {
+                existing.setName(reader.getName());
+                existing.setHostname(reader.getHostname());
+                if (reader.getEnabled() != null) {
+                    existing.setEnabled(reader.getEnabled());
+                }
+                return ResponseEntity.ok(readerRepository.save(existing));
+            })
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteReader(@PathVariable String id) {
+        if (!readerRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        if (readerManager != null) {
+            readerManager.disconnectReader(id);
+        }
+        readerRepository.deleteById(id);
+        return ResponseEntity.ok(Map.of("message", "Reader deleted", "readerId", id));
+    }
+
     @PostMapping("/{id}/start")
     public ResponseEntity<?> startReader(@PathVariable String id) {
         if (!readerRepository.existsById(id)) {

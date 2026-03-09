@@ -107,6 +107,17 @@ curl -X POST http://localhost:8080/api/readers \
   - Parámetros: `epc`, `reader`, `antenna`, `from`, `to`, `page`, `size`
 - `GET /api/events/latest?limit=20` - Últimos eventos
 
+### Grupos de lectores
+
+- `GET /api/groups` - **Listar todos los grupos**
+- `GET /api/groups/{id}` - Obtener un grupo por ID
+- `POST /api/groups` - Crear grupo (body: id, name, description, readerIds, enabled)
+- `PUT /api/groups/{id}` - Actualizar grupo
+- `DELETE /api/groups/{id}` - Eliminar grupo
+- `GET /api/groups/{id}/stats` - Estadísticas del grupo
+
+Para iniciar lectura en todos los lectores de un grupo: `POST /api/sessions/start` con `{"groupId": "id-del-grupo"}`. Documentación completa: **[API_GRUPOS_LECTORES.md](API_GRUPOS_LECTORES.md)**.
+
 ### Estado
 
 - `GET /api/status` - Estado general del gateway
@@ -117,6 +128,9 @@ curl -X POST http://localhost:8080/api/readers \
 ```bash
 # Listar lectores
 curl http://localhost:8080/api/readers
+
+# Listar grupos de lectores
+curl http://localhost:8080/api/groups
 
 # Obtener últimos 20 eventos
 curl http://localhost:8080/api/events/latest?limit=20

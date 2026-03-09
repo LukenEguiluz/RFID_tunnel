@@ -67,6 +67,14 @@ public class GatewayTagReportListener implements TagReportListener {
                     continue;
                 }
                 
+                // Deduplicación por sesión: si hay sesión activa y ya vimos este EPC en esta sesión, no enviar de nuevo
+                if (sessionService != null && sessionService.hasActiveSession(readerId)) {
+                    if (sessionService.hasSeenInActiveSession(readerId, epc)) {
+                        log.debug("EPC {} ya visto en esta sesión, omitido (solo uniques por lectura)", epc);
+                        continue;
+                    }
+                }
+
                 log.info("TAG DETECTADO - Lector: {}, EPC: {}, Antena: {}, RSSI: {} dBm", 
                         readerId, epc, antennaPort, rssi);
                 
@@ -79,7 +87,7 @@ public class GatewayTagReportListener implements TagReportListener {
                     phase
                 );
                 
-                // Si hay sesión activa, también agregar a la sesión
+                // Si hay sesión activa, registrar el EPC para no volver a enviarlo en esta sesión
                 if (sessionService != null && sessionService.hasActiveSession(readerId)) {
                     sessionService.addEpcToSession(readerId, epc);
                     log.debug("EPC {} agregado a sesión activa del lector {}", epc, readerId);

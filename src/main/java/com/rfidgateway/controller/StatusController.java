@@ -58,6 +58,12 @@ public class StatusController {
     public ResponseEntity<Map<String, String>> health() {
         return ResponseEntity.ok(Map.of("status", "UP"));
     }
+
+    /** Comprueba que la API responde (útil para verificar que el código desplegado es el nuevo). */
+    @GetMapping("/ping")
+    public ResponseEntity<Map<String, Object>> ping() {
+        return ResponseEntity.ok(Map.of("ok", true, "message", "Gateway API OK"));
+    }
 }
 
 

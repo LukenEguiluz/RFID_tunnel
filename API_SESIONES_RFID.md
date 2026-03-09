@@ -38,7 +38,7 @@ Content-Type: application/json
 
 **Errores**:
 - `400 Bad Request`: `readerId` no proporcionado, lector no encontrado, o lector no conectado
-- `409 Conflict`: Ya existe una sesión activa para ese lector
+- `409 Conflict`: Ya existe una sesión activa para ese lector. **Solución:** usar `POST /api/sessions/force-reset` (ver más abajo) y luego volver a llamar a `start`.
 
 **Ejemplo con cURL**:
 ```bash
@@ -60,6 +60,65 @@ $response = Invoke-RestMethod -Uri "http://localhost:8080/api/sessions/start" `
 
 $sessionId = $response.sessionId
 Write-Host "Sesión iniciada: $sessionId"
+```
+
+---
+
+### 1.5. Reset forzado de sesión (evitar 409 Conflict)
+
+Si recibes **409 Conflict** al iniciar lectura (“Ya existe una sesión activa”), puedes forzar el reinicio: se detienen todas las sesiones afectadas (y la lectura en los lectores) para poder iniciar de nuevo.
+
+```http
+POST /api/sessions/force-reset
+Content-Type: application/json
+```
+
+**Body (uno de los siguientes):**
+
+| Body | Efecto |
+|------|--------|
+| `{"readerId": "reader-1"}` | Detiene la sesión de ese lector (o la sesión de grupo si pertenece a una). |
+| `{"groupId": "entrada-principal"}` | Detiene la sesión del grupo y todas las sesiones de sus lectores. |
+| `{}` o sin body | Detiene **todas** las sesiones activas (todos los lectores). |
+
+**Respuesta (200 OK)** – ejemplo por lector:
+```json
+{
+  "message": "Sesión detenida. Ya puedes iniciar lectura.",
+  "wasGroupSession": false,
+  "stoppedReaderIds": ["reader-1"]
+}
+```
+
+**Ejemplo (grupo):**
+```json
+{
+  "message": "Sesiones del grupo detenidas. Ya puedes iniciar lectura.",
+  "groupId": "entrada-principal",
+  "stoppedReaderIds": ["reader-1", "reader-2"]
+}
+```
+
+**Flujo recomendado ante 409:**  
+1. `POST /api/sessions/force-reset` con `{"readerId": "..."}` o `{"groupId": "..."}`.  
+2. Esperar 200 OK.  
+3. Volver a llamar a `POST /api/sessions/start` con el mismo `readerId` o `groupId`.
+
+```bash
+# Reset por lector
+curl -X POST https://rfid.leyluz.com/api/sessions/force-reset \
+  -H "Content-Type: application/json" \
+  -d '{"readerId": "reader-1"}'
+
+# Reset por grupo
+curl -X POST https://rfid.leyluz.com/api/sessions/force-reset \
+  -H "Content-Type: application/json" \
+  -d '{"groupId": "entrada-principal"}'
+
+# Reset total
+curl -X POST https://rfid.leyluz.com/api/sessions/force-reset \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 ---

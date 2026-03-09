@@ -28,6 +28,11 @@ public class ReadingSession {
         totalReads++;
     }
 
+    /** Indica si este EPC ya fue detectado en esta sesión (para deduplicar por sesión). */
+    public boolean hasEpc(String epc) {
+        return detectedEpcs.contains(epc);
+    }
+
     public void stop() {
         this.status = SessionStatus.STOPPED;
         this.endTime = LocalDateTime.now();

@@ -225,6 +225,7 @@
             <h1>📚 Documentación de APIs</h1>
             <a href="/" class="btn">← Volver al Dashboard</a>
             <a href="/readers" class="btn">📋 Gestionar Lectores</a>
+            <a href="/groups" class="btn" style="background: #4299e1;">👥 Grupos</a>
         </div>
         
         <!-- Lectores -->
@@ -341,6 +342,85 @@
             </div>
         </div>
         
+        <!-- Grupos -->
+        <div class="api-section">
+            <h2>👥 APIs de Grupos de Lectores</h2>
+            <p class="description">Permiten listar, crear y gestionar grupos de lectores. Ver documentación completa en <strong>API_GRUPOS_LECTORES.md</strong>.</p>
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-get">GET</span>
+                    Listar todos los grupos
+                </h3>
+                <div class="endpoint-url">/api/groups</div>
+                <div class="description">Obtiene la lista de todos los grupos de lectores configurados.</div>
+                <button class="btn btn-test" onclick="testApi('GET', '/api/groups', null)">Probar API</button>
+            </div>
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-get">GET</span>
+                    Obtener un grupo por ID
+                </h3>
+                <div class="endpoint-url">/api/groups/{id}</div>
+                <div class="description">Obtiene un grupo con sus lectores.</div>
+            </div>
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-post">POST</span>
+                    Crear grupo
+                </h3>
+                <div class="endpoint-url">/api/groups</div>
+                <div class="description">Body JSON: id, name, description, readerIds (array), enabled.</div>
+            </div>
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-put">PUT</span>
+                    Actualizar grupo
+                </h3>
+                <div class="endpoint-url">/api/groups/{id}</div>
+                <div class="description">Body JSON: name, description, readerIds, enabled.</div>
+            </div>
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-get">GET</span>
+                    Estadísticas del grupo
+                </h3>
+                <div class="endpoint-url">/api/groups/{id}/stats</div>
+                <div class="description">totalReaders, enabledReaders, connectedReaders.</div>
+            </div>
+        </div>
+
+        <!-- Sesiones de lectura -->
+        <div class="api-section">
+            <h2>📖 Sesiones de lectura</h2>
+            <p class="description">Iniciar/detener lectura por lector o por grupo. Si recibes 409 Conflict, usa <strong>Reset forzado</strong> y vuelve a iniciar.</p>
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-post">POST</span>
+                    Iniciar sesión
+                </h3>
+                <div class="endpoint-url">/api/sessions/start</div>
+                <div class="description">Body: {"readerId": "id"} o {"groupId": "id"}. Devuelve sessionId.</div>
+            </div>
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-post">POST</span>
+                    Reset forzado de sesión (evitar 409)
+                </h3>
+                <div class="endpoint-url">/api/sessions/force-reset</div>
+                <div class="description">Detiene sesiones activas para poder iniciar de nuevo. Body: {"readerId": "id"} para un lector, {"groupId": "id"} para un grupo, o {} para todo.</div>
+                <button class="btn btn-test" onclick="testApi('POST', '/api/sessions/force-reset', {})">Probar reset total</button>
+            </div>
+            <div class="api-endpoint">
+                <h3>
+                    <span class="method method-get">GET</span>
+                    Sesiones activas
+                </h3>
+                <div class="endpoint-url">/api/sessions/active</div>
+                <div class="description">Lista de sesiones activas (lector o grupo).</div>
+                <button class="btn btn-test" onclick="testApi('GET', '/api/sessions/active', null)">Probar API</button>
+            </div>
+        </div>
+
         <!-- Antenas -->
         <div class="api-section">
             <h2>📡 APIs de Antenas</h2>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grupos de Lectores - doHealth RFID Gateway</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header h1 { color: #333; margin-bottom: 10px; }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #dc2626;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        .btn:hover { background: #b91c1c; }
+        .btn-success { background: #48bb78; }
+        .btn-success:hover { background: #38a169; }
+        .btn-primary { background: #4299e1; }
+        .btn-primary:hover { background: #3182ce; }
+        .btn-danger { background: #f56565; }
+        .btn-small { padding: 5px 10px; font-size: 12px; }
+        table {
+            width: 100%;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th {
+            background: #4299e1;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td { padding: 15px; border-bottom: 1px solid #e2e8f0; }
+        tr:hover { background: #f7fafc; }
+        .alert { padding: 15px; margin: 20px 0; border-radius: 5px; }
+        .alert-success { background: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
+        .alert-error { background: #fed7d7; color: #742a2a; border: 1px solid #fc8181; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #666; }
+        .empty-state h3 { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👥 Grupos de Lectores</h1>
+            <p style="color: #666; margin-bottom: 15px;">Lista de grupos configurados. Los grupos permiten iniciar lectura en varios lectores a la vez.</p>
+            <a href="/" class="btn">← Volver</a>
+            <a href="/readers" class="btn">📋 Lectores</a>
+            <a href="/groups/new" class="btn btn-success">➕ Crear Grupo</a>
+            <a href="/api-docs" class="btn btn-primary">📚 Ver APIs</a>
+        </div>
+
+        <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
+        <div th:if="${error}" class="alert alert-error" th:text="${error}"></div>
+
+        <div th:if="${groups != null and !groups.empty}">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th>Lectores</th>
+                        <th>Conectados</th>
+                        <th>Habilitado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="group : ${groups}">
+                        <td th:text="${group.id}"></td>
+                        <td th:text="${group.name}"></td>
+                        <td th:text="${group.description != null ? group.description : '-'}"></td>
+                        <td>
+                            <span th:text="${group.readers != null ? group.readers.size() : 0}"></span>
+                        </td>
+                        <td>
+                            <span th:text="${group.connectedReaders != null ? group.connectedReaders.size() : 0}"></span>
+                        </td>
+                        <td>
+                            <span th:if="${group.enabled}" style="color: #48bb78;">✓</span>
+                            <span th:unless="${group.enabled}" style="color: #f56565;">✗</span>
+                        </td>
+                        <td>
+                            <a th:href="@{/groups/{id}/edit(id=${group.id})}" class="btn btn-small">✏️ Editar</a>
+                            <form th:action="@{/groups/{id}/delete(id=${group.id})}" method="post" style="display: inline;"
+                                  onsubmit="return confirm('¿Eliminar este grupo?');">
+                                <button type="submit" class="btn btn-small btn-danger">🗑️ Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div th:if="${groups == null or groups.empty}" class="empty-state">
+            <h3>No hay grupos configurados</h3>
+            <p>Crea un grupo para controlar varios lectores a la vez (por ejemplo, entrada con múltiples antenas).</p>
+            <a href="/groups/new" class="btn btn-success" style="margin-top: 20px;">➕ Crear primer grupo</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -2,6 +2,8 @@
 
 Esta API permite agrupar múltiples lectores RFID y controlarlos como una unidad. Al iniciar una sesión con un `groupId`, todos los lectores del grupo inician lectura simultáneamente.
 
+**Listar grupos creados:** use `GET /api/groups` para obtener todos los grupos. En la interfaz web: **[Grupos](/groups)** o desde el dashboard el enlace **👥 Listar Grupos**.
+
 ## 🎯 Concepto
 
 En lugar de enviar `readerId` individual, ahora puedes enviar `groupId`:
