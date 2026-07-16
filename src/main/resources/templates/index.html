@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light">
+<head th:replace="~{fragments/dh-head :: dhHead('Inicio')}"></head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='home')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar('doHealth RFID Gateway')}"></header>
+    <div class="custom-scrollbar flex-1 space-y-lg overflow-y-auto p-margin-desktop max-w-max-width">
+        <div th:if="${success}" class="rounded-xl border border-outline-variant bg-surface-container-low px-lg py-md text-body-md text-on-secondary-fixed" th:text="${success}"></div>
+        <div th:if="${error}" class="rounded-xl border border-error bg-error-container px-lg py-md text-body-md text-on-error-container" th:text="${error}"></div>
+
+        <div id="dh-tour-home-welcome" class="flex flex-col items-center gap-lg rounded-xl border border-outline-variant bg-surface-container-lowest p-lg shadow-sm sm:flex-row sm:items-center sm:justify-start sm:gap-xl">
+            <img th:replace="~{fragments/dh-logo :: dhLogoDashboard}"/>
+            <div class="max-w-xl text-center sm:text-left">
+                <p class="font-headline-md text-headline-md text-on-background">doHealth RFID Gateway</p>
+                <p class="mt-sm text-body-md text-on-surface-variant">Resumen de lectores y accesos rápidos al sistema.</p>
+            </div>
+        </div>
+
+        <div id="dh-tour-home-stats" class="grid grid-cols-12 gap-gutter">
+            <div class="col-span-12 flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-lg shadow-sm lg:col-span-4">
+                <div class="flex items-start justify-between">
+                    <span class="font-label-md text-label-md uppercase tracking-wider text-on-surface-variant">Lectores totales</span>
+                    <span class="material-symbols-outlined text-primary">sensors</span>
+                </div>
+                <p class="mt-md font-display-lg text-display-lg text-on-surface" th:text="${totalReaders}">0</p>
+            </div>
+            <div class="col-span-12 flex flex-col justify-between rounded-xl border border-outline-variant bg-surface-container-lowest p-lg shadow-sm lg:col-span-4">
+                <div class="flex items-start justify-between">
+                    <span class="font-label-md text-label-md uppercase tracking-wider text-on-surface-variant">Conectados</span>
+                    <span class="material-symbols-outlined text-[#059669]">wifi_tethering</span>
+                </div>
+                <p class="mt-md font-display-lg text-display-lg text-on-surface" th:text="${connectedReaders}">0</p>
+            </div>
+            <div class="relative col-span-12 flex flex-col justify-between overflow-hidden rounded-xl bg-primary p-lg text-on-primary shadow-sm lg:col-span-4">
+                <div class="relative z-10">
+                    <span class="font-label-md text-label-md opacity-90">Acceso rápido</span>
+                    <p class="mt-sm font-headline-md text-headline-md">Operaciones</p>
+                    <p class="mt-xs font-body-md opacity-85">Use el menú lateral o los accesos inferiores.</p>
+                </div>
+                <span class="material-symbols-outlined pointer-events-none absolute -bottom-2 -right-2 text-[100px] opacity-10">deployed_code</span>
+            </div>
+        </div>
+
+        <div id="dh-tour-home-shortcuts" class="grid grid-cols-2 gap-gutter md:grid-cols-4">
+            <a th:href="@{/readers}" class="group flex flex-col items-center justify-center gap-sm rounded-xl border border-outline-variant bg-surface-container-lowest p-lg transition-all hover:bg-surface-container-low">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-container text-on-primary-container transition-transform group-hover:scale-105">
+                    <span class="material-symbols-outlined text-[28px]">settings_remote</span>
+                </div>
+                <span class="text-center font-title-md text-title-md text-on-surface">Lectores</span>
+            </a>
+            <a th:href="@{/inventory-systems}" class="group flex flex-col items-center justify-center gap-sm rounded-xl border border-outline-variant bg-surface-container-lowest p-lg transition-all hover:bg-surface-container-low">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary-container text-on-secondary-container transition-transform group-hover:scale-105">
+                    <span class="material-symbols-outlined text-[28px]">dynamic_feed</span>
+                </div>
+                <span class="text-center font-title-md text-title-md text-on-surface">Inventario continuo</span>
+            </a>
+            <a th:href="@{/groups}" class="group flex flex-col items-center justify-center gap-sm rounded-xl border border-outline-variant bg-surface-container-lowest p-lg transition-all hover:bg-surface-container-low">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary-container text-on-secondary-container transition-transform group-hover:scale-105">
+                    <span class="material-symbols-outlined text-[28px]">account_tree</span>
+                </div>
+                <span class="text-center font-title-md text-title-md text-on-surface">Grupos</span>
+            </a>
+            <a th:href="@{/tags}" class="group flex flex-col items-center justify-center gap-sm rounded-xl border border-outline-variant bg-surface-container-lowest p-lg transition-all hover:bg-surface-container-low">
+                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary-container text-on-secondary-container transition-transform group-hover:scale-105">
+                    <span class="material-symbols-outlined text-[28px]">nfc</span>
+                </div>
+                <span class="text-center font-title-md text-title-md text-on-surface">Tags en vivo</span>
+            </a>
+        </div>
+
+        <div id="dh-tour-home-actions" class="flex flex-wrap gap-sm">
+            <a th:href="@{/readers/new}" class="inline-flex items-center gap-sm rounded-lg bg-primary px-lg py-sm font-bold text-on-primary shadow-sm transition-all hover:bg-primary-container active:scale-[0.98]">
+                <span class="material-symbols-outlined text-[20px]">add</span>
+                Nuevo lector
+            </a>
+            <a th:href="@{/api-docs}" class="inline-flex items-center gap-sm rounded-lg border border-outline-variant bg-surface-container-lowest px-lg py-sm font-label-md text-label-md text-primary transition-all hover:bg-surface-container-low">
+                <span class="material-symbols-outlined text-[18px]">menu_book</span>
+                Documentación API
+            </a>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+<a id="dh-tour-home-fab" th:href="@{/readers/new}" class="fixed bottom-8 right-8 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary-container text-on-primary-container shadow-xl transition-transform hover:scale-105 active:scale-95 md:right-10" title="Nuevo lector">
+    <span class="material-symbols-outlined text-[30px]">add</span>
+</a>
+</body>
+</html>

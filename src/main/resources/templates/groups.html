@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light">
+<head th:replace="~{fragments/dh-head :: dhHead('Grupos')}"></head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='groups')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar('Grupos de lectores')}"></header>
+    <div class="custom-scrollbar flex-1 space-y-lg overflow-y-auto p-margin-desktop max-w-max-width">
+        <div id="dh-tour-groups-toolbar" class="flex flex-wrap gap-sm">
+            <a th:href="@{/}" class="inline-flex items-center gap-xs rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-label-md text-on-surface hover:bg-surface-container-low">Inicio</a>
+            <a th:href="@{/readers}" class="inline-flex items-center gap-xs rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-label-md text-primary hover:bg-surface-container-low">Lectores</a>
+            <a th:href="@{/groups/new}" class="inline-flex items-center gap-xs rounded-lg bg-primary px-md py-sm font-bold text-on-primary hover:bg-primary-container">Nuevo grupo</a>
+            <a th:href="@{/api-docs}" class="inline-flex items-center gap-xs rounded-lg border border-outline-variant px-md py-sm text-label-md text-primary hover:bg-surface-container-low">APIs</a>
+        </div>
+        <div th:if="${success}" class="rounded-xl border border-outline-variant bg-surface-container-low px-lg py-md text-body-md" th:text="${success}"></div>
+        <div th:if="${error}" class="rounded-xl border border-error bg-error-container px-lg py-md text-body-md text-on-error-container" th:text="${error}"></div>
+        <p class="max-w-3xl text-body-md text-on-surface-variant">Lista de grupos. Permiten iniciar lectura en varios lectores a la vez.</p>
+
+        <div th:if="${groups != null and !groups.empty}" id="dh-tour-groups-table" class="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[880px] border-collapse text-left text-body-md">
+                    <thead>
+                    <tr class="border-b border-outline-variant bg-inverse-surface text-surface-bright">
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">ID</th>
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">Nombre</th>
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">Descripción</th>
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">Lectores</th>
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">Conectados</th>
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">Activo</th>
+                        <th class="px-lg py-md text-right font-label-md text-label-md uppercase tracking-wider">Acciones</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                    <tr th:each="group : ${groups}" class="hover:bg-surface-container-low">
+                        <td class="px-lg py-md font-code-md text-primary" th:text="${group.id}"></td>
+                        <td class="px-lg py-md font-title-md text-on-surface" th:text="${group.name}"></td>
+                        <td class="px-lg py-md text-on-surface-variant" th:text="${group.description != null ? group.description : '-'}"></td>
+                        <td class="px-lg py-md" th:text="${group.readers != null ? group.readers.size() : 0}"></td>
+                        <td class="px-lg py-md" th:text="${group.connectedReaders != null ? group.connectedReaders.size() : 0}"></td>
+                        <td class="px-lg py-md">
+                            <span th:if="${group.enabled}" class="font-bold text-[#059669]">✓</span>
+                            <span th:unless="${group.enabled}" class="font-bold text-error">✗</span>
+                        </td>
+                        <td class="px-lg py-md text-right">
+                            <a th:href="@{/groups/{id}/edit(id=${group.id})}" class="mr-xs inline-flex rounded border border-outline-variant px-sm py-xs text-label-md text-primary hover:bg-surface-container-low">Editar</a>
+                            <form th:action="@{/groups/{id}/delete(id=${group.id})}" method="post" class="inline"
+                                  onsubmit="return confirm('¿Eliminar este grupo?');">
+                                <button type="submit" class="inline-flex rounded border border-error/40 px-sm py-xs text-label-md font-bold text-error hover:bg-error-container">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div th:if="${groups == null or groups.empty}" id="dh-tour-groups-empty" class="rounded-xl border border-dashed border-outline-variant bg-surface-container-low px-lg py-xl text-center">
+            <h3 class="font-title-md text-title-md text-on-surface">No hay grupos</h3>
+            <p class="mt-sm text-body-md text-on-surface-variant">Cree un grupo para controlar varios lectores a la vez.</p>
+            <a th:href="@{/groups/new}" class="mt-md inline-flex rounded-lg bg-primary px-lg py-sm font-bold text-on-primary">Crear grupo</a>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>

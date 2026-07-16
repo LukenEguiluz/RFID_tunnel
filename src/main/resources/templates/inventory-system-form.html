@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light"
+      th:with="pageTitle=${system.id != null} ? 'Editar sistema' : 'Nuevo sistema'">
+<head th:replace="~{fragments/dh-head :: dhHead(${pageTitle})}"></head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='inventory')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar(${pageTitle})}"></header>
+    <div class="custom-scrollbar flex-1 overflow-y-auto p-margin-desktop max-w-max-width">
+        <div id="dh-tour-inv-form-nav" class="mb-lg flex flex-wrap gap-sm">
+            <a th:href="@{/inventory-systems}" class="inline-flex items-center gap-xs rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-label-md text-on-surface hover:bg-surface-container-low">Volver</a>
+            <a th:if="${system.id != null}" th:href="@{/inventory-systems/{id}/epcs(id=${system.id})}"
+               class="inline-flex items-center gap-xs rounded-lg border border-primary/30 bg-primary-container/10 px-md py-sm text-label-md font-bold text-primary hover:bg-primary-container/20">EPCs en vivo</a>
+        </div>
+        <div id="dh-tour-inv-form" class="mx-auto max-w-3xl rounded-xl border border-outline-variant bg-surface-container-lowest p-xl shadow-sm">
+            <form th:action="${system.id != null} ? @{/inventory-systems/{id}/edit(id=${system.id})} : @{/inventory-systems}" method="post" class="space-y-lg">
+                <div th:if="${system.id == null}">
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="id">ID sistema *</label>
+                    <input class="mt-xs block w-full max-w-md rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="text" id="id" name="id" required placeholder="planta-1"/>
+                </div>
+                <div th:if="${system.id != null}">
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant">ID</label>
+                    <input class="mt-xs block w-full max-w-md rounded-lg border border-outline-variant bg-surface-container-high px-md py-sm text-body-md" type="text" th:value="${system.id}" readonly/>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="name">Nombre *</label>
+                    <input class="mt-xs block w-full max-w-md rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="text" id="name" name="name" required th:value="${system.name}"/>
+                </div>
+                <div class="grid gap-md sm:grid-cols-2">
+                    <div>
+                        <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="globalCycleSeconds">Ciclo global (s) *</label>
+                        <input class="mt-xs block w-full max-w-xs rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="number" id="globalCycleSeconds" name="globalCycleSeconds" min="30" required th:value="${system.globalCycleSeconds != null ? system.globalCycleSeconds : 300}"/>
+                        <p class="mt-xs text-[12px] text-on-surface-variant">Tiempo entre inicios de ciclo completo.</p>
+                    </div>
+                    <div>
+                        <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="cyclesToLost">Ciclos antes de removed *</label>
+                        <input class="mt-xs block w-full max-w-xs rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="number" id="cyclesToLost" name="cyclesToLost" min="1" max="20" required th:value="${system.cyclesToLost != null ? system.cyclesToLost : 3}"/>
+                        <p class="mt-xs text-[12px] text-on-surface-variant">Ciclos consecutivos sin lectura en el cluster antes de <code>removed</code>.</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-sm">
+                    <input class="h-4 w-4 rounded border-outline-variant text-primary" type="checkbox" name="enabled" value="true" id="sysen" th:checked="${system.enabled}"/>
+                    <label class="text-body-md text-on-surface" for="sysen">Sistema activo (orquestación)</label>
+                </div>
+                <div>
+                    <h3 class="font-title-md text-title-md text-on-background">Lectores en el ciclo (6 filas)</h3>
+                    <p class="mt-xs text-body-md text-on-surface-variant">Orden y segundos por lector (se reparte entre antenas habilitadas).</p>
+                    <div class="mt-md overflow-x-auto rounded-lg border border-outline-variant">
+                        <table class="members w-full min-w-[560px] border-collapse text-left text-body-md">
+                            <thead>
+                            <tr class="border-b border-outline-variant bg-surface-container-low">
+                                <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">Lector</th>
+                                <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">Orden</th>
+                                <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">Seg. lector</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-outline-variant">
+                            <tr th:each="i : ${#numbers.sequence(0, 5)}" class="hover:bg-surface-container-low/50">
+                                <td class="px-md py-sm">
+                                    <select class="w-full max-w-xs rounded border border-outline-variant bg-surface-container-lowest px-sm py-1 text-body-md" name="memberReaderId">
+                                        <option value="">—</option>
+                                        <option th:each="r : ${allReaders}" th:value="${r.id}" th:text="${r.name + ' (' + r.id + ')'}"
+                                                th:selected="${members != null && members.size() > i && members.get(i).reader != null && members.get(i).reader.id == r.id}"></option>
+                                    </select>
+                                </td>
+                                <td class="px-md py-sm">
+                                    <input class="w-20 rounded border border-outline-variant bg-surface-container-lowest px-sm py-1 text-body-md" type="number" name="memberOrder" min="0"
+                                           th:value="${members != null && members.size() > i} ? ${members.get(i).orderIndex} : ${i}"/>
+                                </td>
+                                <td class="px-md py-sm">
+                                    <input class="w-24 rounded border border-outline-variant bg-surface-container-lowest px-sm py-1 text-body-md" type="number" name="memberSlotSeconds" min="5"
+                                           th:value="${members != null && members.size() > i} ? ${members.get(i).readerSlotSeconds} : 60"/>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-sm pt-md">
+                    <button type="submit" class="rounded-lg bg-primary px-lg py-sm font-bold text-on-primary hover:bg-primary-container">Guardar</button>
+                    <a th:href="@{/inventory-systems}" class="inline-flex items-center rounded-lg border border-outline-variant bg-surface-container-low px-lg py-sm font-label-md text-on-surface hover:bg-surface-container-high">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light">
+<head th:replace="~{fragments/dh-head :: dhHead('Webhook inventario lista')}"></head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='inventory')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar('Webhook inventario lista')}"></header>
+    <div class="custom-scrollbar flex-1 overflow-y-auto p-margin-desktop max-w-max-width">
+        <div class="mb-lg flex flex-wrap gap-sm">
+            <a th:href="@{/inventory-systems}" class="inline-flex items-center gap-xs rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-label-md text-on-surface hover:bg-surface-container-low">Volver</a>
+            <a th:href="@{/inventory-systems/{id}/epcs(id=${system.id})}" class="inline-flex items-center gap-xs rounded-lg border border-primary/30 bg-primary-container/10 px-md py-sm text-label-md font-bold text-primary hover:bg-primary-container/20">Inventario</a>
+        </div>
+
+        <div th:if="${success}" class="mb-md rounded-xl border border-primary/40 bg-primary-container/15 px-lg py-md text-body-md text-on-surface" th:text="${success}"></div>
+        <div th:if="${error}" class="mb-md rounded-xl border border-error bg-error-container px-lg py-md text-body-md text-on-error-container" th:text="${error}"></div>
+
+        <div class="grid gap-lg lg:grid-cols-2">
+            <div class="rounded-xl border border-outline-variant bg-surface-container-lowest p-xl shadow-sm">
+                <h2 class="font-title-lg text-title-lg text-on-background">Configuración</h2>
+                <p class="mt-xs text-body-md text-on-surface-variant">
+                    Sistema <code th:text="${system.id}">id</code> — <span th:text="${system.name}">nombre</span>
+                </p>
+                <form th:action="@{/inventory-systems/{id}/inventory-list-webhook(id=${system.id})}" method="post" class="mt-lg space-y-md">
+                    <div class="flex items-center gap-sm">
+                        <input class="h-4 w-4 rounded border-outline-variant text-primary" type="checkbox" name="inventoryListWebhookEnabled" value="true" id="wlEn"
+                               th:checked="${system.inventoryListWebhookEnabled}"/>
+                        <label class="text-body-md text-on-surface" for="wlEn">Webhook lista activo</label>
+                    </div>
+                    <div>
+                        <label class="mb-xs block text-label-md uppercase text-on-surface-variant" for="wlUrl">URL POST (vuestra webapp)</label>
+                        <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md font-code-md" type="url" id="wlUrl" name="inventoryListWebhookUrl"
+                               placeholder="https://vuestra-app.com/api/rfid/inventory-list"
+                               th:value="${system.inventoryListWebhookUrl}"/>
+                    </div>
+                    <div>
+                        <label class="mb-xs block text-label-md uppercase text-on-surface-variant" for="wlEventId">ID del evento (fijo, upsert webapp)</label>
+                        <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md font-code-md" type="text" id="wlEventId" name="inventoryListWebhookEventId"
+                               placeholder="evt_00000000800000000000000000000001"
+                               th:value="${system.inventoryListWebhookEventId != null ? system.inventoryListWebhookEventId : 'evt_00000000800000000000000000000001'}"/>
+                        <p class="mt-xs text-[12px] text-on-surface-variant">Siempre el mismo <code>id</code> en cada POST. La webapp actualiza el mismo recurso.</p>
+                    </div>
+                    <div>
+                        <label class="mb-xs block text-label-md uppercase text-on-surface-variant" for="wlSecret">Secret HMAC (opcional)</label>
+                        <input class="mt-xs block w-full max-w-md rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md" type="password" id="wlSecret" name="inventoryListWebhookSecret"
+                               placeholder="Dejar vacío para no cambiar"/>
+                    </div>
+                    <div class="flex items-center gap-sm">
+                        <input class="h-4 w-4 rounded border-outline-variant text-primary" type="checkbox" name="sendSyncOnSave" value="true" id="wlSync"/>
+                        <label class="text-body-md text-on-surface" for="wlSync">Enviar listado completo al guardar</label>
+                    </div>
+                    <button type="submit" class="inline-flex items-center gap-sm rounded-lg bg-primary px-lg py-sm font-bold text-on-primary hover:bg-primary-container">Guardar</button>
+                </form>
+
+                <div class="mt-lg border-t border-outline-variant pt-md space-y-sm">
+                    <h3 class="font-title-md text-title-md text-on-background">Pruebas</h3>
+                    <p class="text-[12px] text-on-surface-variant">Requiere URL configurada. Tras cada clic verás si el POST respondió OK (HTTP 2xx) o falló. Las etiquetas de prueba empiezan por ASCII <code>TEST</code> (hex <code>54455354…</code>).</p>
+                    <div class="flex flex-wrap gap-sm">
+                        <form th:action="@{/inventory-systems/{id}/inventory-list-webhook/force(id=${system.id})}" method="post">
+                            <button type="submit" class="inline-flex items-center gap-sm rounded-lg border border-outline-variant bg-surface-container-low px-md py-sm text-label-md font-bold text-on-surface hover:bg-surface-container-high">
+                                Forzar POST (SYNC)
+                            </button>
+                        </form>
+                        <form th:action="@{/inventory-systems/{id}/inventory-list-webhook/test(id=${system.id})}" method="post"
+                              onsubmit="return confirm('¿Enviar POST de prueba con tags TEST aleatorios (add/remove)?');">
+                            <button type="submit" class="inline-flex items-center gap-sm rounded-lg border border-primary/40 bg-primary-container/15 px-md py-sm text-label-md font-bold text-primary hover:bg-primary-container/25">
+                                Test POST + tags TEST aleatorios
+                            </button>
+                        </form>
+                    </div>
+                    <p class="text-[12px] text-on-surface-variant">
+                        Receptor local:
+                        <code th:text="|POST /api/inventory-systems/${system.id}/inventory-list-webhook/capture|">capture</code>
+                    </p>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-outline-variant bg-surface-container-lowest p-xl shadow-sm">
+                <h2 class="font-title-lg text-title-lg text-on-background">Formato JSON</h2>
+                <p class="mt-xs text-body-md text-on-surface-variant">
+                    Cada POST incluye <code>epcs</code> completo + <code>tags</code> (RSSI y distancia Cerca/Media/Lejos por etiqueta)
+                    + <code>added</code> / <code>removed</code>. El <code>id</code> no cambia entre envíos.
+                </p>
+                <pre class="mt-md max-h-[520px] overflow-auto rounded-lg border border-outline-variant bg-surface-container-high p-md text-[11px] leading-relaxed text-on-surface" th:text="${samplePayload}">{}</pre>
+            </div>
+        </div>
+    </div>
+</main>
+</body>
+</html>

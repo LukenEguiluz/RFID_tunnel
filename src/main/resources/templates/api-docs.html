@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light">
+<head>
+    <th:block th:insert="~{fragments/dh-head :: dhHead('Documentación API')}"/>
+    <link rel="stylesheet" th:href="@{/css/api-docs-legacy.css}"/>
+</head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='api')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar('Documentación API')}"></header>
+    <div class="custom-scrollbar flex-1 overflow-y-auto p-margin-desktop">
+    <div class="container mx-auto max-w-max-width">
+        <div class="header" id="dh-tour-api-header">
+            <h1>Documentación API — doHealth RFID Gateway</h1>
+            <p class="description" style="margin-top:8px;">Referencia para integrar su <strong>webapp</strong>, scripts o backend contra este gateway. Todas las rutas REST bajo el prefijo <code class="endpoint-url" style="display:inline;padding:4px 8px;">/api</code> (salvo WebSocket).</p>
+            <div style="margin-top:12px;">
+                <a href="/" class="btn">← Volver al Dashboard</a>
+                <a href="/readers" class="btn">Gestionar lectores</a>
+                <a href="/groups" class="btn" style="background:#3182ce;">Grupos</a>
+            </div>
+        </div>
+
+        <div class="callout callout-info">
+            <strong>Convenciones.</strong> Cuerpo y respuestas en <strong>JSON</strong> (<code>Content-Type: application/json</code> en POST/PUT salvo indicación). Codificación UTF-8. En esta versión del gateway <strong>no hay autenticación HTTP</strong> en las APIs: proteja el puerto con firewall/VPN o coloque un reverse proxy con TLS y auth.
+            <br/><br/>
+            <strong>URL base.</strong> Desde el navegador use la misma origen que sirve la UI (p. ej. <code>http://IP_VM:8080</code>). Desde otra máquina sustituya host/puerto. Para HTTPS/WSS use su dominio y certificado en el proxy.
+            <br/><br/>
+            <strong>Modo de lector.</strong> <code>TUNNEL</code>: lectura bajo demanda (start/stop, sesiones). <code>CONTINUOUS</code>: inventario orquestado por un <em>sistema de inventario</em> — muchas rutas de sesión/start devuelven <strong>409</strong> si intenta mezclar APIs de túnel con ese modo.
+        </div>
+
+        <div class="callout callout-warn">
+            <strong>CORS y orígenes cruzados.</strong> Si su webapp se sirve desde otro dominio/puerto que el gateway, el navegador aplicará CORS. Este proyecto no define globalmente CORS en Spring: en producción use <strong>mismo origen</strong> (proxy que sirva estáticos y proxee <code>/api</code>) o añada configuración CORS en el gateway.
+        </div>
+
+        <nav class="api-toc" aria-label="Índice">
+            <h3>Índice</h3>
+            <ul>
+                <li><a href="#salud">Salud y estado</a></li>
+                <li><a href="#lectores">Lectores</a></li>
+                <li><a href="#antenas">Antenas</a></li>
+                <li><a href="#grupos">Grupos</a></li>
+                <li><a href="#sesiones">Sesiones de lectura</a></li>
+                <li><a href="#inventario">Inventario continuo (solo lectura)</a></li>
+                <li><a href="#eventos">Eventos RFID (histórico)</a></li>
+                <li><a href="#realtime">Tiempo real (SSE + REST)</a></li>
+                <li><a href="#websocket">WebSocket</a></li>
+                <li><a href="#codigos">Códigos HTTP y errores</a></li>
+                <li><a href="#integracion">Integración en webapp</a></li>
+            </ul>
+        </nav>
+
+        <div class="toolbar-api-docs">
+            <div class="field">
+                <label for="readerId">Lector (pruebas)</label>
+                <select id="readerId" class="reader-select" onchange="updateReaderId()">
+                    <option value="">— Seleccione —</option>
+                    <option th:each="reader : ${readers}" th:value="${reader.id}" th:text="${reader.name + ' (' + reader.id + ')'}"></option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="groupIdSelect">Grupo (pruebas)</label>
+                <select id="groupIdSelect" class="reader-select">
+                    <option value="">— Seleccione —</option>
+                    <option th:each="g : ${groups}" th:value="${g.id}" th:text="${g.name + ' (' + g.id + ')'}"></option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="inventorySystemSelect">Sistema inventario (pruebas)</label>
+                <select id="inventorySystemSelect" class="reader-select">
+                    <option value="">— Seleccione —</option>
+                    <option th:each="s : ${inventorySystems}" th:value="${s.id}" th:text="${s.name + ' (' + s.id + ')'}"></option>
+                </select>
+            </div>
+        </div>
+
+        <!-- ========== SALUD ========== -->
+        <div class="api-section" id="salud">
+            <h2>Salud y estado del gateway</h2>
+            <p class="description">Use <code>/api/ping</code> para comprobar que el proceso Java responde; <code>/api/health</code> incluye <strong>PostgreSQL</strong> (503 si la BD no responde); <code>/api/status</code> resume lectores en memoria/BD.</p>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Ping</h3>
+                <div class="endpoint-url">GET /api/ping</div>
+                <p class="description">Respuesta rápida sin consultar base de datos.</p>
+                <div class="response"><strong>Ejemplo 200:</strong><pre>{
+  "ok": true,
+  "message": "Gateway API OK"
+}</pre></div>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/ping', null)">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Health (incluye JDBC)</h3>
+                <div class="endpoint-url">GET /api/health</div>
+                <p class="description">Ideal para Kubernetes/Docker <em>readiness</em>. Si la conexión JDBC falla, <strong>503</strong> con <code>database: DOWN</code>.</p>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/health', null)">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Estado agregado de lectores</h3>
+                <div class="endpoint-url">GET /api/status</div>
+                <table class="spec-table">
+                    <tr><th>Campo</th><th>Tipo</th><th>Descripción</th></tr>
+                    <tr><td><code>totalReaders</code></td><td>number</td><td>Cantidad de lectores configurados</td></tr>
+                    <tr><td><code>connectedReaders</code></td><td>number</td><td>Marcados como conectados</td></tr>
+                    <tr><td><code>readingReaders</code></td><td>number</td><td>En lectura activa</td></tr>
+                    <tr><td><code>readers</code></td><td>array</td><td>Resumen por lector: id, name, connected, reading</td></tr>
+                </table>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/status', null)">Probar</button>
+            </div>
+
+            <details class="example-block"><summary>Ejemplo fetch (JavaScript)</summary>
+<pre>const BASE = ''; // mismo origen, o 'http://IP:8080'
+const r = await fetch(BASE + '/api/health');
+console.log(r.status, await r.json());</pre>
+            </details>
+        </div>
+
+        <!-- ========== LECTORES ========== -->
+        <div class="api-section" id="dh-tour-api-readers">
+            <h2 id="lectores">Lectores</h2>
+            <p class="description">Base: <code>/api/readers</code>. Entidad <strong>Reader</strong>: <code>id</code>, <code>name</code>, <code>hostname</code>, <code>enabled</code>, <code>operationMode</code> (<code>TUNNEL</code>|<code>CONTINUOUS</code>), <code>brand</code> (<code>IMPINJ_OCTANE</code>, <code>ZEBRA_FUTURE</code>, <code>OTHER</code>), <code>inventorySystemId</code> (si CONTINUOUS), <code>isConnected</code>, <code>isReading</code>, fechas.</p>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Listar lectores</h3>
+                <div class="endpoint-url">GET /api/readers</div>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/readers', null)">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Obtener lector por ID</h3>
+                <div class="endpoint-url">GET /api/readers/{id}</div>
+                <p class="description"><strong>404</strong> si no existe.</p>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('GET', '/api/readers/', '')">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Estado resumido</h3>
+                <div class="endpoint-url">GET /api/readers/{id}/status</div>
+                <p class="description">Campos: <code>id</code>, <code>name</code>, <code>connected</code>, <code>reading</code>, <code>operationMode</code>, <code>brand</code>.</p>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('GET', '/api/readers/', '/status')">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Crear lector</h3>
+                <div class="endpoint-url">POST /api/readers</div>
+                <p class="description"><strong>409</strong> si el <code>id</code> ya existe. El servidor fija <code>operationMode=TUNNEL</code>, flags de conexión y marca por defecto.</p>
+                <div class="response"><strong>Body mínimo:</strong><pre>{
+  "id": "lector-api-demo",
+  "name": "Desde API",
+  "hostname": "192.168.1.100",
+  "enabled": true,
+  "brand": "IMPINJ_OCTANE"
+}</pre></div>
+                <button type="button" class="btn btn-test" onclick="testApi('POST', '/api/readers', { id: 'lector-api-demo', name: 'Desde API', hostname: '192.168.1.100', enabled: true, brand: 'IMPINJ_OCTANE' })">Probar (puede 409 si existe)</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-put">PUT</span> Actualizar lector</h3>
+                <div class="endpoint-url">PUT /api/readers/{id}</div>
+                <p class="description">Actualiza <code>name</code>, <code>hostname</code>, <code>brand</code> (si se envía), <code>enabled</code>. El <code>id</code> de URL no cambia.</p>
+                <div class="response"><strong>Body ejemplo:</strong><pre>{
+  "name": "Nombre actualizado",
+  "hostname": "192.168.1.50",
+  "enabled": true,
+  "brand": "IMPINJ_OCTANE"
+}</pre></div>
+                <button type="button" class="btn btn-test" onclick="testApiPutReader()">Probar PUT (lector seleccionado)</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-delete">DELETE</span> Eliminar lector</h3>
+                <div class="endpoint-url">DELETE /api/readers/{id}</div>
+                <p class="description">Desconecta si hay <code>ReaderManager</code> y borra fila. Respuesta 200: <code>{"message":"Reader deleted","readerId":"..."}</code></p>
+                <button type="button" class="btn btn-test" onclick="testApiDeleteReader()">Probar DELETE (lector seleccionado)</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Iniciar / detener lectura (modo TUNNEL)</h3>
+                <div class="endpoint-url">POST /api/readers/{id}/start · POST /api/readers/{id}/stop</div>
+                <p class="description"><strong>409</strong> si el lector está en <code>CONTINUOUS</code>. <strong>503</strong> si no hay <code>ReaderManager</code>.</p>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('POST', '/api/readers/', '/start')">Start</button>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('POST', '/api/readers/', '/stop')">Stop</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Reset conexión · Reboot · Reset antenas</h3>
+                <div class="endpoint-url">POST /api/readers/{id}/reset · /reboot · /antennas/reset</div>
+                <div class="response"><strong>Respuestas típicas 200:</strong><pre>{"message":"Reader reset and reconnecting","readerId":"..."}
+{"message":"Reader reboot initiated, will reconnect in 5 seconds","readerId":"..."}
+{"message":"Antennas configuration reset","readerId":"..."}</pre></div>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('POST', '/api/readers/', '/reset')">Reset</button>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('POST', '/api/readers/', '/reboot')">Reboot</button>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('POST', '/api/readers/', '/antennas/reset')">Reset antenas</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Hardware Impinj (capacidades)</h3>
+                <div class="endpoint-url">GET /api/readers/{id}/hardware</div>
+                <p class="description"><strong>200</strong> con <code>ReaderHardwareInfo</code>: <code>readerId</code>, <code>brand</code>, <code>antennaCount</code>, <code>modelName</code>, <code>modelNumber</code>, <code>firmwareVersion</code>, <code>xArray</code>. <strong>404</strong> si no hay datos (lector no Impinj conectado).</p>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('GET', '/api/readers/', '/hardware')">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Descubrir y sincronizar antenas desde hardware</h3>
+                <div class="endpoint-url">POST /api/readers/{id}/antennas/discover</div>
+                <p class="description">Requiere lector Impinj conectado. 200: <code>physicalAntennaPorts</code> (número de puertos sincronizados).</p>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('POST', '/api/readers/', '/antennas/discover')">Probar</button>
+            </div>
+
+            <details class="example-block"><summary>cURL — listar lectores</summary>
+<pre>curl -sS "http://localhost:8080/api/readers" | jq .</pre>
+            </details>
+        </div>
+
+        <!-- ========== ANTENAS ========== -->
+        <div class="api-section" id="antenas">
+            <h2>Antenas</h2>
+            <p class="description">Base <code>/api/antennas</code>. ID por defecto: <code>{readerId}-antenna-{portNumber}</code>. Tras crear o actualizar potencias, suele necesitarse <code>POST /api/readers/{readerId}/antennas/reset</code> o reconexión del lector para aplicar en hardware.</p>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Listar todas</h3>
+                <div class="endpoint-url">GET /api/antennas</div>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/antennas', null)">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Por ID · Por lector</h3>
+                <div class="endpoint-url">GET /api/antennas/{id} · GET /api/antennas/reader/{readerId}</div>
+                <button type="button" class="btn btn-test" onclick="testApiWithId('GET', '/api/antennas/reader/', '')">Antenas del lector seleccionado</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Crear antena</h3>
+                <div class="endpoint-url">POST /api/antennas</div>
+                <div class="response"><strong>Body JSON:</strong><pre>{
+  "readerId": "lector-1",
+  "portNumber": 1,
+  "name": "Entrada principal",
+  "enabled": true,
+  "txPowerDbm": 25.0,
+  "rxSensitivityDbm": -70.0,
+  "id": "opcional-si-no-usa-convencion-default"
+}</pre></div>
+                <p class="description"><strong>409</strong> si ya existe puerto para ese lector.</p>
+                <button type="button" class="btn btn-test" onclick="testApiCreateAntenna()">Probar POST (lector + puerto 99 demo)</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-put">PUT</span> Actualizar antena</h3>
+                <div class="endpoint-url">PUT /api/antennas/{id}</div>
+                <p class="description">Campos opcionales: <code>enabled</code>, <code>name</code>, <code>txPowerDbm</code> o <code>tx_power_dbm</code>, <code>rxSensitivityDbm</code> o <code>rx_sensitivity_dbm</code>.</p>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Reset por ID de antena</h3>
+                <div class="endpoint-url">POST /api/antennas/{id}/reset</div>
+                <p class="description">Invoca reset de antenas del <strong>lector asociado</strong> a esa antena.</p>
+            </div>
+        </div>
+
+        <!-- ========== GRUPOS ========== -->
+        <div class="api-section" id="grupos">
+            <h2>Grupos de lectores</h2>
+            <p class="description">Base <code>/api/groups</code>. Un grupo contiene una lista de <code>readers</code> (objetos completos en JSON al leer).</p>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Listar · Obtener uno</h3>
+                <div class="endpoint-url">GET /api/groups · GET /api/groups/{id}</div>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/groups', null)">Listar</button>
+                <button type="button" class="btn btn-test" onclick="testGroupGet()">GET grupo seleccionado</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Crear grupo</h3>
+                <div class="endpoint-url">POST /api/groups</div>
+                <p class="description"><strong>201 Created</strong> con cuerpo del grupo. Errores 400 con <code>{"error":"..."}</code>.</p>
+                <div class="response"><strong>Body:</strong><pre>{
+  "id": "grupo-api-1",
+  "name": "Zona A",
+  "description": "Opcional",
+  "readerIds": ["lector-1", "lector-2"],
+  "enabled": true
+}</pre></div>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-put">PUT</span> Actualizar grupo</h3>
+                <div class="endpoint-url">PUT /api/groups/{id}</div>
+                <p class="description">Campos opcionales en JSON: <code>name</code>, <code>description</code>, <code>enabled</code>, <code>readerIds</code> (reemplaza la lista).</p>
+                <button type="button" class="btn btn-test" onclick="testGroupPutDemo()">PUT demo (solo si hay grupo seleccionado)</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-delete">DELETE</span> Eliminar grupo</h3>
+                <div class="endpoint-url">DELETE /api/groups/{id}</div>
+                <p class="description">200: <code>{"message":"Grupo eliminado exitosamente"}</code></p>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Estadísticas</h3>
+                <div class="endpoint-url">GET /api/groups/{id}/stats</div>
+                <p class="description"><code>groupId</code>, <code>groupName</code>, <code>totalReaders</code>, <code>enabledReaders</code>, <code>connectedReaders</code>.</p>
+                <button type="button" class="btn btn-test" onclick="testGroupStats()">Probar stats</button>
+            </div>
+        </div>
+
+        <!-- ========== SESIONES ========== -->
+        <div class="api-section" id="sesiones">
+            <h2>Sesiones de lectura (túnel)</h2>
+            <p class="description">Base <code>/api/sessions</code>. Agrupa lectura bajo un <code>sessionId</code> y acumula EPCs hasta <code>stop</code>. No usar en lectores <code>CONTINUOUS</code> (409).</p>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Iniciar sesión</h3>
+                <div class="endpoint-url">POST /api/sessions/start</div>
+                <div class="response"><strong>Lector — body:</strong><pre>{ "readerId": "lector-1" }</pre>
+                <strong>Grupo — body:</strong><pre>{ "groupId": "mi-grupo" }</pre>
+                <strong>201 ejemplo lector:</strong><pre>{
+  "sessionId": "…",
+  "readerId": "lector-1",
+  "status": "ACTIVE",
+  "startTime": "2026-05-14T12:00:00",
+  "message": "Sesión iniciada exitosamente"
+}</pre></div>
+                <p class="description"><strong>409</strong> si ya hay sesión: el cuerpo puede incluir pista <code>forceReset</code> hacia <code>POST /api/sessions/force-reset</code>.</p>
+                <button type="button" class="btn btn-test" onclick="testSessionStartReader()">Iniciar (lector seleccionado)</button>
+                <button type="button" class="btn btn-test" onclick="testSessionStartGroup()">Iniciar (grupo seleccionado)</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Consultar sesión</h3>
+                <div class="endpoint-url">GET /api/sessions/{sessionId}</div>
+                <p class="description">Incluye <code>epcs</code> (ordenados), <code>epcCount</code>, <code>totalReads</code>, tiempos. Para sesión de grupo la forma del JSON la define el servicio de vista de grupo.</p>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Detener sesión</h3>
+                <div class="endpoint-url">POST /api/sessions/{sessionId}/stop</div>
+                <p class="description">Detiene lectura en lector(es) asociados vía <code>ReaderManager</code>.</p>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-post">POST</span> Force reset</h3>
+                <div class="endpoint-url">POST /api/sessions/force-reset</div>
+                <p class="description">Body opcional: <code>{"readerId":"..."}</code>, <code>{"groupId":"..."}</code> o <code>{}</code> para detener todas las sesiones conocidas.</p>
+                <button type="button" class="btn btn-test" onclick="testApi('POST', '/api/sessions/force-reset', {})">Reset total</button>
+                <button type="button" class="btn btn-test" onclick="testSessionForceReader()">Reset lector seleccionado</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Sesiones activas</h3>
+                <div class="endpoint-url">GET /api/sessions/active</div>
+                <p class="description">200: <code>{"sessions":[{ "sessionId","readerId","status","startTime","epcCount","totalReads" }, …]}</code></p>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/sessions/active', null)">Probar</button>
+            </div>
+
+            <details class="example-block"><summary>Flujo típico en webapp</summary>
+<pre>// 1) por si quedó sesión colgada
+await fetch('/api/sessions/force-reset', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ readerId: 'lector-1' })
+});
+// 2) iniciar
+const start = await fetch('/api/sessions/start', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ readerId: 'lector-1' })
+});
+const { sessionId } = await start.json();
+// 3) polling de sesión hasta detener
+const view = await fetch('/api/sessions/' + encodeURIComponent(sessionId));
+// 4) stop
+await fetch('/api/sessions/' + encodeURIComponent(sessionId) + '/stop', { method: 'POST' });</pre>
+            </details>
+        </div>
+
+        <!-- ========== INVENTARIO ========== -->
+        <div class="api-section" id="inventario">
+            <h2>Inventario continuo (solo lectura)</h2>
+            <p class="description">Base <code>/api/inventory-systems</code>. Gestión de sistemas (alta/edición) es por la <strong>UI web</strong> o futuras APIs de escritura; aquí solo lectura y telemetría de EPC/presencia.</p>
+
+            <div class="callout callout-info">
+                <strong>Lectura continua en la webapp:</strong> haga <strong>polling</strong> a <code>GET /api/inventory-systems/{id}/live</code> cada 1–2 s para estado del ciclo y lectores; use <code>GET .../epcs/current</code> para la lista de EPC presentes; suscríbase a <strong>WebSocket</strong> <code>/ws/events</code> para eventos <code>INVENTORY_CYCLE_START</code>, <code>INVENTORY_EPC_ADD</code> y <code>INVENTORY_EPC_REMOVE</code> sin polling de la tabla completa.
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Vista en vivo del inventario continuo</h3>
+                <div class="endpoint-url">GET /api/inventory-systems/{id}/live</div>
+                <p class="description">Resumen para dashboards: si el <strong>ciclo global</strong> está en ejecución (<code>cycleActive</code>), cuántos EPC distintos se han visto en ese ciclo (<code>uniqueEpcsThisCycle</code>), cuántos EPC siguen <strong>presentes</strong> en el área según el último ciclo completo (<code>presentEpcCount</code>), y el estado de cada lector miembro (<code>continuousSynced</code> indica modo <code>CONTINUOUS</code> y <code>inventorySystemId</code> coincidente con este sistema).</p>
+                <table class="spec-table">
+                    <tr><th>Campo</th><th>Descripción</th></tr>
+                    <tr><td><code>enabled</code></td><td>Sistema activo en configuración (el orquestador solo programa bucles si está en true)</td></tr>
+                    <tr><td><code>globalCycleSeconds</code></td><td>Intervalo entre inicios de ciclo completo</td></tr>
+                    <tr><td><code>cycleActive</code></td><td>True mientras se ejecuta un ciclo (lectura en curso)</td></tr>
+                    <tr><td><code>uniqueEpcsThisCycle</code></td><td>EPC únicos leídos en el ciclo actual</td></tr>
+                    <tr><td><code>presentEpcCount</code></td><td>Filas con <code>present=true</code> en estado del sistema</td></tr>
+                    <tr><td><code>readers</code></td><td>Lista: conexión, lectura, modo, orden, segundos de slot, <code>continuousSynced</code></td></tr>
+                    <tr><td><code>links</code></td><td>Rutas relativas a EPCs, eventos y WebSocket</td></tr>
+                </table>
+                <div class="response"><strong>Ejemplo 200 (resumido):</strong><pre>{
+  "systemId": "planta-1",
+  "name": "Línea A",
+  "globalCycleSeconds": 300,
+  "enabled": true,
+  "cycleActive": true,
+  "uniqueEpcsThisCycle": 12,
+  "presentEpcCount": 48,
+  "readers": [ { "readerId", "name", "connected", "reading", "continuousSynced", "orderIndex", "readerSlotSeconds" } ],
+  "links": { "epcsCurrent", "events", "websocket" }
+}</pre></div>
+                <details class="example-block"><summary>Polling desde el front</summary>
+<pre>const id = 'planta-1';
+setInterval(async () => {
+  const r = await fetch('/api/inventory-systems/' + encodeURIComponent(id) + '/live');
+  const live = await r.json();
+  console.log('Ciclo activo:', live.cycleActive, 'Presentes:', live.presentEpcCount);
+}, 1500);</pre>
+                </details>
+                <button type="button" class="btn btn-test" onclick="testInventoryLive()">Probar /live</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Listar sistemas · Detalle</h3>
+                <div class="endpoint-url">GET /api/inventory-systems · GET /api/inventory-systems/{id}</div>
+                <p class="description">Campos resumidos: <code>id</code>, <code>name</code>, <code>globalCycleSeconds</code>, <code>enabled</code>.</p>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/inventory-systems', null)">Listar</button>
+                <button type="button" class="btn btn-test" onclick="testInventoryGet()">GET sistema seleccionado</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> EPCs presentes en el ciclo</h3>
+                <div class="endpoint-url">GET /api/inventory-systems/{id}/epcs/current</div>
+                <p class="description">Lista de <code>InventorySystemEpcState</code> con <code>present=true</code>: <code>epc</code>, <code>firstSeenAt</code>, <code>lastSeenAt</code>, <code>lastReaderId</code>, <code>lastAntennaPort</code>.</p>
+                <button type="button" class="btn btn-test" onclick="testInventoryEpcsCurrent()">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Todos los EPCs (paginado)</h3>
+                <div class="endpoint-url">GET /api/inventory-systems/{id}/epcs/all?page=0&amp;size=50</div>
+                <p class="description">Respuesta <strong>Spring Data Page</strong>: <code>content</code>, <code>totalElements</code>, <code>totalPages</code>, <code>number</code>, <code>size</code>, etc. <code>size</code> máximo <strong>200</strong>.</p>
+                <button type="button" class="btn btn-test" onclick="testInventoryEpcsAll()">Probar page 0</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Eventos de presencia (paginado)</h3>
+                <div class="endpoint-url">GET /api/inventory-systems/{id}/events?page=0&amp;size=100</div>
+                <p class="description">Entidad <code>EpcPresenceEvent</code>: <code>eventType</code> <code>ADD</code>|<code>REMOVE</code>, <code>occurredAt</code>, <code>readerId</code>, <code>antennaPort</code>. <strong>ADD</strong>: primera detección del EPC en cada <em>ciclo global</em> (incluye EPC nuevo, reaparición tras <code>REMOVE</code>, o nueva pasada de ciclo si el tag sigue en campo). Lecturas repetidas dentro del mismo ciclo no generan otro ADD. <strong>REMOVE</strong>: el EPC estaba marcado presente y no se leyó en ese ciclo. <code>size</code> máx. <strong>500</strong>.</p>
+                <button type="button" class="btn btn-test" onclick="testInventoryEvents()">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Línea de tiempo por EPC</h3>
+                <div class="endpoint-url">GET /api/inventory-systems/{id}/epcs/{epc}/timeline</div>
+                <p class="description">El EPC en URL se normaliza a mayúsculas. Respuesta: <code>systemId</code>, <code>epc</code>, <code>state</code> (objeto o null), <code>events</code> (lista ordenada ascendente por tiempo).</p>
+            </div>
+        </div>
+
+        <!-- ========== EVENTOS HISTÓRICOS ========== -->
+        <div class="api-section" id="eventos">
+            <h2>Eventos RFID (histórico en BD)</h2>
+            <p class="description">Base <code>/api/events</code>. Cada registro es un <strong>TagEvent</strong> (lectura puntual almacenada).</p>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Listado filtrado y paginado</h3>
+                <div class="endpoint-url">GET /api/events</div>
+                <table class="spec-table">
+                    <tr><th>Query</th><th>Uso</th></tr>
+                    <tr><td><code>epc</code></td><td>Filtrar por EPC exacto</td></tr>
+                    <tr><td><code>reader</code></td><td>ID de lector</td></tr>
+                    <tr><td><code>antenna</code></td><td>ID de antena</td></tr>
+                    <tr><td><code>from</code>, <code>to</code></td><td><code>ISO-8601</code> (ambos obligatorios si usa rango)</td></tr>
+                    <tr><td><code>page</code>, <code>size</code></td><td>Paginación (por defecto 0 y 50)</td></tr>
+                </table>
+                <p class="description">Solo se aplica <strong>un</strong> filtro principal en este orden de prioridad: epc → reader → antenna → rango fechas → todos.</p>
+                <div class="response"><strong>200:</strong><pre>{
+  "events": [ { "id": "uuid", "epc", "readerId", "antennaId", "antennaPort", "rssi", "phase", "detectedAt", "createdAt" } ],
+  "totalElements": 1234,
+  "totalPages": 25,
+  "currentPage": 0,
+  "size": 50
+}</pre></div>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/events?page=0&amp;size=10', null)">Probar</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Últimos eventos</h3>
+                <div class="endpoint-url">GET /api/events/latest?limit=20</div>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/events/latest?limit=5', null)">Probar</button>
+            </div>
+        </div>
+
+        <!-- ========== REALTIME ========== -->
+        <div class="api-section" id="realtime">
+            <h2>Tiempo real — SSE y REST auxiliar</h2>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Server-Sent Events (stream)</h3>
+                <div class="endpoint-url">GET /api/realtime/events</div>
+                <p class="description"><code>Accept: text/event-stream</code>. Query opcional: <code>readerId</code>, <code>epc</code>. Eventos con nombre <code>tag</code> (payload JSON de tag) y <code>connected</code> al abrir.</p>
+                <div class="response"><strong>Ejemplo EventSource:</strong><pre>const es = new EventSource('/api/realtime/events?readerId=' + encodeURIComponent('lector-1'));
+es.addEventListener('tag', (ev) => {
+  const row = JSON.parse(ev.data);
+  console.log(row.epc, row.rssi, row.detectedAt);
+});
+es.addEventListener('connected', (ev) => console.log(ev.data));</pre></div>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Últimos tags (REST)</h3>
+                <div class="endpoint-url">GET /api/realtime/events/latest?readerId=&amp;epc=&amp;limit=50</div>
+                <p class="description">Array directo de <code>TagEvent</code> (misma forma que en SSE).</p>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/realtime/events/latest?limit=10', null)">Probar</button>
+                <button type="button" class="btn btn-test" onclick="testRealtimeLatestReader()">Con lector seleccionado</button>
+            </div>
+
+            <div class="api-endpoint">
+                <h3><span class="method method-get">GET</span> Estadísticas rápidas</h3>
+                <div class="endpoint-url">GET /api/realtime/stats?readerId=opcional</div>
+                <p class="description">Campos: <code>lastMinute</code>, <code>lastHour</code>, <code>totalEvents</code>, <code>timestamp</code>.</p>
+                <button type="button" class="btn btn-test" onclick="testApi('GET', '/api/realtime/stats', null)">Probar</button>
+            </div>
+        </div>
+
+        <!-- ========== WEBSOCKET ========== -->
+        <div class="api-section" id="websocket">
+            <h2>WebSocket <code>/ws/events</code></h2>
+            <p class="description">URL: <code>ws://HOST:PUERTO/ws/events</code> o <code>wss://</code> detrás de proxy TLS. Mensajes son <strong>texto JSON</strong> con campo <code>type</code>.</p>
+
+            <table class="spec-table">
+                <tr><th>type</th><th>data (resumen)</th></tr>
+                <tr><td><code>TAG_DETECTED</code></td><td><code>epc</code>, <code>readerId</code>, <code>antennaId</code>, <code>antennaPort</code>, <code>rssi</code>, <code>phase</code></td></tr>
+                <tr><td><code>READER_DISCONNECTED</code></td><td><code>readerId</code>, <code>readerName</code>, <code>reason</code></td></tr>
+                <tr><td><code>READER_RECONNECTED</code></td><td><code>readerId</code>, <code>readerName</code></td></tr>
+                <tr><td><code>INVENTORY_CYCLE_START</code></td><td><code>systemId</code></td></tr>
+                <tr><td><code>INVENTORY_EPC_ADD</code></td><td><code>systemId</code>, <code>epc</code>, <code>readerId</code>, <code>antennaPort</code>, <code>rssi</code>, <code>phase</code></td></tr>
+                <tr><td><code>INVENTORY_EPC_REMOVE</code></td><td><code>systemId</code>, <code>epc</code></td></tr>
+            </table>
+
+            <details class="example-block"><summary>Ejemplo WebSocket (navegador)</summary>
+<pre>const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/events';
+const ws = new WebSocket(wsUrl);
+ws.onmessage = (evt) => {
+  const msg = JSON.parse(evt.data);
+  if (msg.type === 'TAG_DETECTED') console.log('EPC', msg.data.epc, msg.data.rssi);
+  if (msg.type === 'INVENTORY_EPC_ADD') console.log('Inv', msg.data.systemId, msg.data.epc);
+};
+ws.onclose = () => setTimeout(() => location.reload(), 5000); // reconexión naive</pre>
+            </details>
+        </div>
+
+        <!-- ========== CÓDIGOS ========== -->
+        <div class="api-section" id="codigos">
+            <h2>Códigos HTTP y errores frecuentes</h2>
+            <table class="spec-table">
+                <tr><th>Código</th><th>Casos típicos en este gateway</th></tr>
+                <tr><td>200</td><td>GET correcto; DELETE/POST con cuerpo de éxito</td></tr>
+                <tr><td>201</td><td>POST crear grupo o iniciar sesión</td></tr>
+                <tr><td>400</td><td>Body inválido, parámetros obligatorios faltantes</td></tr>
+                <tr><td>404</td><td>Recurso inexistente (lector, antena, sesión, sistema)</td></tr>
+                <tr><td>409</td><td>Conflicto: ID duplicado, sesión ya activa, lector en modo CONTINUOUS incompatible con la operación</td></tr>
+                <tr><td>503</td><td><code>ReaderManager</code> no disponible; <code>/api/health</code> con BD caída</td></tr>
+            </table>
+            <p class="description">Los cuerpos de error suelen ser JSON <code>{"error":"mensaje"}</code> o mapas con <code>message</code> según el endpoint.</p>
+        </div>
+
+        <!-- ========== INTEGRACIÓN ========== -->
+        <div class="api-section" id="integracion">
+            <h2>Integración desde su webapp</h2>
+            <ol class="description" style="padding-left:20px;line-height:1.7;">
+                <li>Fije una <strong>variable de entorno</strong> en el front (p. ej. <code>VITE_GATEWAY_URL</code>) con la URL base HTTP(S).</li>
+                <li>Use <code>fetch(url, { credentials: 'include' })</code> solo si en el futuro añade cookies/sesión; hoy suele bastar same-origin o CORS en proxy.</li>
+                <li>Para tiempo real elija <strong>SSE</strong> (<code>EventSource</code>), <strong>WebSocket</strong> o <strong>polling</strong> a <code>/api/realtime/events/latest</code> según restricciones de red.</li>
+                <li>Antes de operaciones largas (sesión + lectura), llame a <code>/api/readers/{id}/status</code> para comprobar <code>connected</code>.</li>
+            </ol>
+            <details class="example-block"><summary>Módulo ES minimal (fetch + JSON)</summary>
+<pre>export async function gatewayGet(path) {
+  const r = await fetch(path, { headers: { 'Accept': 'application/json' } });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+export async function gatewayPost(path, body) {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const txt = await r.text();
+  let data; try { data = txt ? JSON.parse(txt) : null; } catch { data = txt; }
+  if (!r.ok) throw new Error(typeof data === 'object' ? JSON.stringify(data) : data);
+  return data;
+}</pre>
+            </details>
+        </div>
+
+    </div>
+    </div>
+</main>
+
+<div id="apiModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2 id="modalTitle">Resultado de API</h2>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<script>
+    let selectedReaderId = '';
+
+    function updateReaderId() {
+        selectedReaderId = document.getElementById('readerId').value;
+    }
+
+    function testApi(method, endpoint, body) {
+        showModal(method + ' ' + endpoint, 'Ejecutando...');
+        const options = { method: method, headers: { 'Accept': 'application/json' } };
+        if (body !== null && body !== undefined) {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(body);
+        }
+        fetch(endpoint, options)
+            .then(function(response) {
+                const ct = response.headers.get('content-type');
+                if (ct && ct.includes('application/json')) {
+                    return response.json().then(function(data) { return { status: response.status, data: data }; });
+                }
+                return response.text().then(function(text) { return { status: response.status, data: text }; });
+            })
+            .then(function(result) {
+                showModal(method + ' ' + endpoint, 'Status: ' + result.status + '\n\n' + JSON.stringify(result.data, null, 2));
+            })
+            .catch(function(error) {
+                showModal(method + ' ' + endpoint + ' — Error', String(error.message));
+            });
+    }
+
+    function testApiWithId(method, baseEndpoint, suffix) {
+        if (!selectedReaderId) {
+            alert('Seleccione un lector en la barra superior.');
+            return;
+        }
+        testApi(method, baseEndpoint + encodeURIComponent(selectedReaderId) + (suffix || ''), null);
+    }
+
+    function testApiPutReader() {
+        if (!selectedReaderId) { alert('Seleccione un lector'); return; }
+        testApi('PUT', '/api/readers/' + encodeURIComponent(selectedReaderId), {
+            name: 'Actualizado vía API docs',
+            hostname: '192.168.1.1',
+            enabled: true,
+            brand: 'IMPINJ_OCTANE'
+        });
+    }
+
+    function testApiDeleteReader() {
+        if (!selectedReaderId) { alert('Seleccione un lector'); return; }
+        if (!confirm('¿Eliminar lector ' + selectedReaderId + '?')) return;
+        const options = { method: 'DELETE', headers: { 'Accept': 'application/json' } };
+        fetch('/api/readers/' + encodeURIComponent(selectedReaderId), options)
+            .then(function(r) { return r.json().then(function(d) { return { status: r.status, data: d }; }); })
+            .then(function(result) {
+                showModal('DELETE /api/readers/...', 'Status: ' + result.status + '\n\n' + JSON.stringify(result.data, null, 2));
+            })
+            .catch(function(e) { showModal('Error', e.message); });
+    }
+
+    function testApiCreateAntenna() {
+        if (!selectedReaderId) { alert('Seleccione un lector'); return; }
+        testApi('POST', '/api/antennas', {
+            readerId: selectedReaderId,
+            portNumber: 99,
+            name: 'Demo API docs',
+            enabled: false,
+            txPowerDbm: 20,
+            rxSensitivityDbm: -70
+        });
+    }
+
+    function selectedGroupId() {
+        return document.getElementById('groupIdSelect').value;
+    }
+
+    function testGroupGet() {
+        var id = selectedGroupId();
+        if (!id) { alert('Seleccione un grupo'); return; }
+        testApi('GET', '/api/groups/' + encodeURIComponent(id), null);
+    }
+
+    function testGroupStats() {
+        var id = selectedGroupId();
+        if (!id) { alert('Seleccione un grupo'); return; }
+        testApi('GET', '/api/groups/' + encodeURIComponent(id) + '/stats', null);
+    }
+
+    function testGroupPutDemo() {
+        var id = selectedGroupId();
+        if (!id) { alert('Seleccione un grupo'); return; }
+        testApi('PUT', '/api/groups/' + encodeURIComponent(id), { description: 'Actualizado desde documentación API — ' + new Date().toISOString() });
+    }
+
+    function selectedSystemId() {
+        return document.getElementById('inventorySystemSelect').value;
+    }
+
+    function testInventoryGet() {
+        var id = selectedSystemId();
+        if (!id) { alert('Seleccione un sistema de inventario'); return; }
+        testApi('GET', '/api/inventory-systems/' + encodeURIComponent(id), null);
+    }
+
+    function testInventoryEpcsCurrent() {
+        var id = selectedSystemId();
+        if (!id) { alert('Seleccione un sistema'); return; }
+        testApi('GET', '/api/inventory-systems/' + encodeURIComponent(id) + '/epcs/current', null);
+    }
+
+    function testInventoryEpcsAll() {
+        var id = selectedSystemId();
+        if (!id) { alert('Seleccione un sistema'); return; }
+        testApi('GET', '/api/inventory-systems/' + encodeURIComponent(id) + '/epcs/all?page=0&size=20', null);
+    }
+
+    function testInventoryEvents() {
+        var id = selectedSystemId();
+        if (!id) { alert('Seleccione un sistema'); return; }
+        testApi('GET', '/api/inventory-systems/' + encodeURIComponent(id) + '/events?page=0&size=20', null);
+    }
+
+    function testInventoryLive() {
+        var id = selectedSystemId();
+        if (!id) { alert('Seleccione un sistema'); return; }
+        testApi('GET', '/api/inventory-systems/' + encodeURIComponent(id) + '/live', null);
+    }
+
+    function testSessionStartReader() {
+        if (!selectedReaderId) { alert('Seleccione un lector'); return; }
+        testApi('POST', '/api/sessions/start', { readerId: selectedReaderId });
+    }
+
+    function testSessionStartGroup() {
+        var gid = selectedGroupId();
+        if (!gid) { alert('Seleccione un grupo'); return; }
+        testApi('POST', '/api/sessions/start', { groupId: gid });
+    }
+
+    function testSessionForceReader() {
+        if (!selectedReaderId) { alert('Seleccione un lector'); return; }
+        testApi('POST', '/api/sessions/force-reset', { readerId: selectedReaderId });
+    }
+
+    function testRealtimeLatestReader() {
+        if (!selectedReaderId) { alert('Seleccione un lector'); return; }
+        testApi('GET', '/api/realtime/events/latest?limit=15&readerId=' + encodeURIComponent(selectedReaderId), null);
+    }
+
+    function showModal(title, content) {
+        document.getElementById('modalTitle').textContent = title;
+        document.getElementById('modalBody').innerHTML = '<pre>' + escapeHtml(content) + '</pre>';
+        document.getElementById('apiModal').style.display = 'block';
+    }
+
+    function closeModal() {
+        document.getElementById('apiModal').style.display = 'none';
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    window.onclick = function(event) {
+        const modal = document.getElementById('apiModal');
+        if (event.target === modal) closeModal();
+    };
+</script>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>

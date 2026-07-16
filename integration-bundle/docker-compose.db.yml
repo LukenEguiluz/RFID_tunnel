@@ -1,0 +1,31 @@
+# Solo base de datos. Volumen con nombre fijo: los redeploys del gateway no borran datos.
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rfidgateway-postgres
+    environment:
+      - POSTGRES_DB=rfidgateway
+      - POSTGRES_USER=rfiduser
+      - POSTGRES_PASSWORD=changeme
+    volumes:
+      - rfid_tunnel_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rfiduser -d rfidgateway"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - rfid_tunnel_net
+
+volumes:
+  rfid_tunnel_postgres_data:
+    name: rfid_tunnel_postgres_data
+
+networks:
+  rfid_tunnel_net:
+    name: rfid_tunnel_net
+    driver: bridge

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light">
+<head th:replace="~{fragments/dh-head :: dhHead('Inventario continuo')}"></head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='inventory')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar('Inventario continuo')}"></header>
+    <div class="custom-scrollbar flex-1 space-y-lg overflow-y-auto p-margin-desktop max-w-max-width">
+        <div class="mb-lg flex flex-wrap items-end justify-between gap-md" id="dh-tour-inv-header">
+            <div>
+                <h2 class="font-headline-lg text-headline-lg text-on-background">Sistemas</h2>
+                <p class="mt-xs max-w-2xl text-body-md text-on-surface-variant">Agrupa lectores, ciclo global y tiempo por lector.</p>
+            </div>
+            <div class="flex flex-wrap gap-sm">
+                <a th:href="@{/inventory-systems/new}" class="inline-flex items-center gap-sm rounded-lg bg-primary px-lg py-sm font-bold text-on-primary shadow-sm hover:bg-primary-container">
+                    <span class="material-symbols-outlined text-[20px]">add</span> Nuevo sistema
+                </a>
+                <a th:href="@{/}" class="inline-flex items-center gap-sm rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-label-md text-on-surface hover:bg-surface-container-low">Inicio</a>
+            </div>
+        </div>
+        <div th:if="${success}" class="rounded-xl border border-outline-variant bg-surface-container-low px-lg py-md text-body-md" th:text="${success}"></div>
+        <div th:if="${error}" class="rounded-xl border border-error bg-error-container px-lg py-md text-body-md text-on-error-container" th:text="${error}"></div>
+
+        <div class="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-sm" id="dh-tour-inv-table">
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[720px] border-collapse text-left text-body-md">
+                    <thead>
+                    <tr class="border-b border-outline-variant bg-inverse-surface text-surface-bright">
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">ID</th>
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">Nombre</th>
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">Ciclo (s)</th>
+                        <th class="px-lg py-md font-label-md text-label-md uppercase tracking-wider">Activo</th>
+                        <th class="px-lg py-md text-right font-label-md text-label-md uppercase tracking-wider">Acciones</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                    <tr th:each="s : ${systems}" class="transition-colors hover:bg-surface-container-low">
+                        <td class="px-lg py-md"><code class="rounded bg-surface-container-high px-sm py-0.5 font-code-md text-code-md text-primary" th:text="${s.id}">id</code></td>
+                        <td class="px-lg py-md font-title-md text-on-surface" th:text="${s.name}"></td>
+                        <td class="px-lg py-md text-on-surface-variant" th:text="${s.globalCycleSeconds}"></td>
+                        <td class="px-lg py-md">
+                            <span th:if="${s.enabled}" class="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-sm py-0.5 text-label-md font-bold uppercase text-green-800">Sí</span>
+                            <span th:unless="${s.enabled}" class="inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-high px-sm py-0.5 text-label-md font-bold text-secondary">No</span>
+                        </td>
+                        <td class="px-lg py-md text-right">
+                            <a th:href="@{/inventory-systems/{id}/epcs(id=${s.id})}" class="mr-xs inline-flex items-center gap-0.5 rounded border border-primary/30 bg-primary-container/10 px-sm py-xs text-label-md font-bold text-primary hover:bg-primary-container/20">Inventario</a>
+                            <a th:href="@{/inventory-systems/{id}/webhook(id=${s.id})}" class="mr-xs inline-flex items-center gap-0.5 rounded border border-outline-variant px-sm py-xs text-label-md text-on-surface hover:bg-surface-container-high">Webhook</a>
+                            <a th:href="@{/inventory-systems/{id}/edit(id=${s.id})}" class="mr-xs inline-flex items-center gap-0.5 rounded border border-outline-variant px-sm py-xs text-label-md text-on-surface hover:bg-surface-container-high">Editar</a>
+                            <form th:action="@{/inventory-systems/{id}/delete(id=${s.id})}" method="post" class="inline"
+                                  onsubmit="return confirm('¿Eliminar sistema y datos de EPC de este sistema?');">
+                                <button type="submit" class="inline-flex rounded border border-error/40 px-sm py-xs text-label-md font-bold text-error hover:bg-error-container">Eliminar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="border-t border-outline-variant px-lg py-md text-[12px] text-on-surface-variant">
+                API: <code class="rounded bg-surface-container-high px-1">/api/inventory-systems</code>,
+                <code class="rounded bg-surface-container-high px-1">/api/inventory-systems/{id}/live</code>,
+                <code class="rounded bg-surface-container-high px-1">/api/inventory-systems/{id}/epcs/current</code>,
+                WebSocket <code class="rounded bg-surface-container-high px-1">/ws/events</code>
+            </p>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>

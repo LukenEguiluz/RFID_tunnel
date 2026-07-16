@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="dhTutorialFab">
+    <button type="button" id="dh-tutorial-launch"
+            class="fixed bottom-28 right-6 z-[70] flex h-12 w-12 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-primary shadow-lg transition-all hover:bg-primary-container hover:text-on-primary-container focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-container focus-visible:ring-offset-2 md:right-10"
+            title="Tutorial de esta pantalla" aria-label="Iniciar tutorial de esta pantalla">
+        <span class="material-symbols-outlined text-[26px]">help</span>
+    </button>
+    <script type="module" th:src="@{/js/dh-tutorial.js}"></script>
+</th:block>
+</html>

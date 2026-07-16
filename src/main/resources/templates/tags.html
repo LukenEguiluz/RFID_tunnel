@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light">
+<head>
+    <th:block th:insert="~{fragments/dh-head :: dhHead('Tags RFID')}"/>
+    <link rel="stylesheet" th:href="@{/css/tags-legacy.css}"/>
+</head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='tags')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar('Tags RFID')}"></header>
+    <div class="custom-scrollbar flex-1 overflow-y-auto p-margin-desktop">
+    <div class="container mx-auto max-w-[1400px]">
+        <div class="header" id="dh-tour-tags-header">
+            <div>
+                <h1>🏷️ Tags RFID Leídos</h1>
+                <div class="controls" style="margin-top: 10px;">
+                    <span id="liveIndicator" class="live-indicator"></span>
+                    <span id="liveStatus">Desconectado</span>
+                </div>
+            </div>
+            <div id="dh-tour-tags-controls">
+                <a href="/" class="btn">← Volver</a>
+                <button class="btn btn-success" onclick="toggleLive()" id="toggleLiveBtn">▶️ Iniciar Tiempo Real</button>
+                <button class="btn" onclick="loadTags()">🔄 Actualizar</button>
+            </div>
+        </div>
+        
+        <div class="stats" id="dh-tour-tags-stats">
+            <div class="stat-card">
+                <h3>Total Tags</h3>
+                <div class="value" id="totalTags">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Último Minuto</h3>
+                <div class="value" id="lastMinute">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Última Hora</h3>
+                <div class="value" id="lastHour">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Tags Únicos</h3>
+                <div class="value" id="uniqueTags">0</div>
+            </div>
+        </div>
+        
+        <div class="filters" id="dh-tour-tags-filters">
+            <h3>🔍 Filtros</h3>
+            <div class="filter-group">
+                <div class="filter-item">
+                    <label>Lector</label>
+                    <select id="readerFilter" onchange="loadTags()">
+                        <option value="">Todos los lectores</option>
+                        <option th:each="reader : ${readers}" th:value="${reader.id}" th:text="${reader.name}"></option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>EPC (Tag)</label>
+                    <input type="text" id="epcFilter" placeholder="Buscar por EPC..." onkeyup="debounce(loadTags, 500)()">
+                </div>
+                <div class="filter-item">
+                    <label>Antena</label>
+                    <input type="number" id="antennaFilter" placeholder="Número de antena" onchange="loadTags()">
+                </div>
+                <div class="filter-item">
+                    <label>Límite</label>
+                    <select id="limitFilter" onchange="loadTags()">
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <button class="btn btn-small" onclick="clearFilters()">Limpiar Filtros</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tags-container" id="dh-tour-tags-table">
+            <div class="tags-header">
+                <h2>📋 Tags Detectados</h2>
+                <span id="tagsCount">0 tags</span>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="tags-table">
+                    <thead>
+                        <tr>
+                            <th>EPC</th>
+                            <th>Lector</th>
+                            <th>Antena</th>
+                            <th>RSSI (dBm)</th>
+                            <th>Fecha/Hora</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tagsTableBody">
+                        <tr>
+                            <td colspan="5" class="empty-state">Cargando tags...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination">
+                <div>
+                    <button class="btn btn-small" onclick="previousPage()" id="prevBtn" disabled>← Anterior</button>
+                    <span style="margin: 0 15px;">Página <span id="currentPage">1</span></span>
+                    <button class="btn btn-small" onclick="nextPage()" id="nextBtn">Siguiente →</button>
+                </div>
+                <div>
+                    <span id="totalPages">Total: 0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+    </div>
+</main>
+
+    
+    <script>
+        let currentPage = 0;
+        let totalPages = 0;
+        let isLive = false;
+        let eventSource = null;
+        let debounceTimer = null;
+        
+        // Cargar tags al iniciar
+        window.onload = function() {
+            loadTags();
+            loadStats();
+            setInterval(loadStats, 10000); // Actualizar stats cada 10 segundos
+        };
+        
+        function debounce(func, wait) {
+            return function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(func, wait);
+            };
+        }
+        
+        function loadTags() {
+            const readerId = document.getElementById('readerFilter').value;
+            const epc = document.getElementById('epcFilter').value;
+            const antenna = document.getElementById('antennaFilter').value;
+            const limit = document.getElementById('limitFilter').value;
+            
+            let url = `/api/realtime/events/latest?limit=${limit}`;
+            if (readerId) url += `&readerId=${readerId}`;
+            if (epc) url += `&epc=${epc}`;
+            
+            fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                displayTags(data);
+                document.getElementById('tagsCount').textContent = data.length + ' tags';
+            })
+            .catch(error => {
+                console.error('Error al cargar tags:', error);
+                document.getElementById('tagsTableBody').innerHTML = 
+                    '<tr><td colspan="5" class="empty-state">Error al cargar tags</td></tr>';
+            });
+        }
+        
+        function displayTags(tags) {
+            const tbody = document.getElementById('tagsTableBody');
+            
+            if (tags.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No se encontraron tags</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = tags.map(tag => `
+                <tr>
+                    <td><span class="tag-epc">${tag.epc || 'N/A'}</span></td>
+                    <td><span class="badge badge-reader">${tag.readerId || 'N/A'}</span></td>
+                    <td><span class="badge badge-antenna">Antena ${tag.antennaPort || 'N/A'}</span></td>
+                    <td><span class="badge badge-rssi">${tag.rssi ? tag.rssi.toFixed(1) : 'N/A'} dBm</span></td>
+                    <td>${formatDate(tag.detectedAt)}</td>
+                </tr>
+            `).join('');
+        }
+        
+        function loadStats() {
+            const readerId = document.getElementById('readerFilter').value || null;
+            let url = '/api/realtime/stats';
+            if (readerId) url += `?readerId=${readerId}`;
+            
+            fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('totalTags').textContent = data.totalEvents || 0;
+                document.getElementById('lastMinute').textContent = data.lastMinute || 0;
+                document.getElementById('lastHour').textContent = data.lastHour || 0;
+                
+                // Calcular tags únicos (aproximado)
+                loadUniqueTagsCount(readerId);
+            })
+            .catch(error => {
+                console.error('Error al cargar estadísticas:', error);
+            });
+        }
+        
+        function loadUniqueTagsCount(readerId) {
+            let url = `/api/realtime/events/latest?limit=1000`;
+            if (readerId) url += `&readerId=${readerId}`;
+            
+            fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                const uniqueEpc = new Set(data.map(tag => tag.epc));
+                document.getElementById('uniqueTags').textContent = uniqueEpc.size;
+            })
+            .catch(error => {
+                console.error('Error al cargar tags únicos:', error);
+            });
+        }
+        
+        function toggleLive() {
+            if (isLive) {
+                stopLive();
+            } else {
+                startLive();
+            }
+        }
+        
+        function startLive() {
+            const readerId = document.getElementById('readerFilter').value || null;
+            let url = '/api/realtime/events';
+            if (readerId) url += `?readerId=${readerId}`;
+            
+            eventSource = new EventSource(url);
+            
+            eventSource.addEventListener('tag', (event) => {
+                const tag = JSON.parse(event.data);
+                addTagToTable(tag);
+                loadStats();
+            });
+            
+            eventSource.addEventListener('connected', (event) => {
+                console.log('Conectado al stream en tiempo real');
+            });
+            
+            eventSource.onerror = (error) => {
+                console.error('Error en stream:', error);
+                stopLive();
+            };
+            
+            isLive = true;
+            document.getElementById('liveIndicator').classList.add('active');
+            document.getElementById('liveStatus').textContent = 'Conectado (Tiempo Real)';
+            document.getElementById('toggleLiveBtn').textContent = '⏸️ Detener Tiempo Real';
+            document.getElementById('toggleLiveBtn').classList.add('btn-danger');
+            document.getElementById('toggleLiveBtn').classList.remove('btn-success');
+        }
+        
+        function stopLive() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            isLive = false;
+            document.getElementById('liveIndicator').classList.remove('active');
+            document.getElementById('liveStatus').textContent = 'Desconectado';
+            document.getElementById('toggleLiveBtn').textContent = '▶️ Iniciar Tiempo Real';
+            document.getElementById('toggleLiveBtn').classList.remove('btn-danger');
+            document.getElementById('toggleLiveBtn').classList.add('btn-success');
+        }
+        
+        function addTagToTable(tag) {
+            const tbody = document.getElementById('tagsTableBody');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><span class="tag-epc">${tag.epc || 'N/A'}</span></td>
+                <td><span class="badge badge-reader">${tag.readerId || 'N/A'}</span></td>
+                <td><span class="badge badge-antenna">Antena ${tag.antennaPort || 'N/A'}</span></td>
+                <td><span class="badge badge-rssi">${tag.rssi ? parseFloat(tag.rssi).toFixed(1) : 'N/A'} dBm</span></td>
+                <td>${formatDate(tag.detectedAt)}</td>
+            `;
+            
+            // Insertar al inicio
+            if (tbody.firstChild && tbody.firstChild.classList.contains('empty-state')) {
+                tbody.innerHTML = '';
+            }
+            tbody.insertBefore(row, tbody.firstChild);
+            
+            // Limitar a 100 filas
+            while (tbody.children.length > 100) {
+                tbody.removeChild(tbody.lastChild);
+            }
+            
+            // Actualizar contador
+            const count = tbody.children.length;
+            document.getElementById('tagsCount').textContent = count + ' tags';
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString);
+            return date.toLocaleString('es-ES', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+        
+        function clearFilters() {
+            document.getElementById('readerFilter').value = '';
+            document.getElementById('epcFilter').value = '';
+            document.getElementById('antennaFilter').value = '';
+            document.getElementById('limitFilter').value = '50';
+            if (isLive) {
+                stopLive();
+                startLive();
+            } else {
+                loadTags();
+            }
+        }
+        
+        function previousPage() {
+            if (currentPage > 0) {
+                currentPage--;
+                loadTags();
+            }
+        }
+        
+        function nextPage() {
+            if (currentPage < totalPages - 1) {
+                currentPage++;
+                loadTags();
+            }
+        }
+        
+        // Detener stream al cerrar la página
+        window.onbeforeunload = function() {
+            stopLive();
+        };
+    </script>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>
+

@@ -1,0 +1,33 @@
+# Solo gateway. Requiere red y Postgres (docker-compose.db.yml).
+# Puerto host por defecto 38080 (poco habitual) → 8080 en el contenedor.
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rfidgateway
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=rfidgateway-postgres
+      - DB_PORT=5432
+      - DB_NAME=rfidgateway
+      - DB_USER=rfiduser
+      - DB_PASSWORD=changeme
+    ports:
+      - "${GATEWAY_HTTP_PORT:-38080}:8080"
+    restart: unless-stopped
+    networks:
+      - rfid_tunnel_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    volumes:
+      - ./logs:/app/logs
+
+networks:
+  rfid_tunnel_net:
+    external: true
+    name: rfid_tunnel_net

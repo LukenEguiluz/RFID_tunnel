@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light"
+      th:with="pageTitle=|Inventario — ${systemName}|">
+<head th:replace="~{fragments/dh-head :: dhHead(${pageTitle})}"></head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='inventory')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar(${pageTitle})}"></header>
+    <div class="custom-scrollbar flex-1 space-y-lg overflow-y-auto p-margin-desktop max-w-max-width">
+        <div class="flex flex-wrap gap-sm">
+            <a th:href="@{/inventory-systems}" class="inline-flex items-center gap-xs rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-label-md text-on-surface hover:bg-surface-container-low">Lista sistemas</a>
+            <a th:href="@{/inventory-systems/{id}/webhook(id=${systemId})}" class="inline-flex items-center gap-xs rounded-lg border border-primary/30 bg-primary-container/10 px-md py-sm text-label-md font-bold text-primary hover:bg-primary-container/20">Webhook</a>
+            <a th:href="@{/inventory-systems/{id}/edit(id=${systemId})}" class="inline-flex items-center gap-xs rounded-lg border border-outline-variant px-md py-sm text-label-md text-on-surface hover:bg-surface-container-high">Editar</a>
+        </div>
+
+        <div th:if="${success}" class="rounded-xl border border-primary/40 bg-primary-container/15 px-lg py-md text-body-md text-on-surface" th:text="${success}"></div>
+        <div th:if="${error}" class="mb-md rounded-xl border border-error bg-error-container px-lg py-md text-body-md text-on-error-container" th:text="${error}"></div>
+
+        <div class="rounded-xl border border-amber-300/60 bg-amber-50 p-lg shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-md">
+                <div>
+                    <h2 class="font-title-lg text-title-lg text-amber-950">Demo / mock (presentaciones)</h2>
+                    <p class="mt-xs text-body-md text-amber-900/80">
+                        Pausá los ciclos para evitar <code>removed</code> automáticos.
+                        Marcá salidas y regresos manuales (disparan webhook si hay URL).
+                        Ciclos antes de removed: <strong th:text="${cyclesToLost}">3</strong>
+                        (<a th:href="@{/inventory-systems/{id}/edit(id=${systemId})}" class="underline">editar</a>).
+                    </p>
+                    <p th:if="${cyclesPaused}" class="mt-sm inline-flex items-center gap-1 rounded-full border border-amber-500 bg-amber-200 px-sm py-0.5 text-label-md font-bold text-amber-950">
+                        Ciclos PAUSADOS — sin removes automáticos
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-sm">
+                    <form th:if="${!cyclesPaused}" th:action="@{/inventory-systems/{id}/demo/pause-cycles(id=${systemId})}" method="post">
+                        <button type="submit" class="rounded-lg border border-amber-600 bg-amber-600 px-md py-sm text-label-md font-bold text-white hover:bg-amber-700">Pausar ciclos</button>
+                    </form>
+                    <form th:if="${cyclesPaused}" th:action="@{/inventory-systems/{id}/demo/resume-cycles(id=${systemId})}" method="post">
+                        <button type="submit" class="rounded-lg border border-green-700 bg-green-700 px-md py-sm text-label-md font-bold text-white hover:bg-green-800">Reanudar ciclos</button>
+                    </form>
+                </div>
+            </div>
+            <div class="mt-md flex flex-wrap items-end gap-md">
+                <div class="min-w-[280px] flex-1">
+                    <label class="mb-xs block text-label-md uppercase text-amber-900/70" for="demoEpc">EPC (hex)</label>
+                    <input class="block w-full rounded-lg border border-amber-300 bg-white px-md py-sm font-code-md text-body-md" type="text" id="demoEpc" list="demoEpcList" placeholder="424430303031313230303300"/>
+                    <datalist id="demoEpcList"></datalist>
+                </div>
+                <form th:action="@{/inventory-systems/{id}/demo/mark-removed(id=${systemId})}" method="post" class="inline"
+                      onsubmit="this.querySelector('input[name=epc]').value=document.getElementById('demoEpc').value;return document.getElementById('demoEpc').value.trim()!=='';">
+                    <input type="hidden" name="epc" value=""/>
+                    <button type="submit" class="rounded-lg border border-red-400 bg-red-100 px-md py-sm text-label-md font-bold text-red-900 hover:bg-red-200">Marcar salida (removed)</button>
+                </form>
+                <form th:action="@{/inventory-systems/{id}/demo/mark-returned(id=${systemId})}" method="post" class="inline"
+                      onsubmit="this.querySelector('input[name=epc]').value=document.getElementById('demoEpc').value;return document.getElementById('demoEpc').value.trim()!=='';">
+                    <input type="hidden" name="epc" value=""/>
+                    <button type="submit" class="rounded-lg border border-green-500 bg-green-100 px-md py-sm text-label-md font-bold text-green-900 hover:bg-green-200">Marcar regreso (added)</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-outline-variant bg-surface-container-lowest p-lg shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-md">
+                <div>
+                    <h2 class="font-title-lg text-title-lg text-on-background">Inventario disponible (vista webhook)</h2>
+                    <p class="mt-xs text-body-md text-on-surface-variant">
+                        <strong th:text="${systemName}">Sistema</strong> ·
+                        <code class="rounded bg-surface-container-high px-1 font-code-md text-code-md text-primary" th:text="${systemId}">id</code>
+                    </p>
+                    <p class="mt-xs text-[12px] text-on-surface-variant">
+                        Mismo JSON que recibe la webapp por POST (<code>INVENTORY_LIST_UPDATE</code>).
+                        Listado en vivo cada 1,5 s; cambios <code>added</code>/<code>removed</code> al cerrar ciclo vía WebSocket.
+                        Una etiqueta pasa a <code>removed</code> tras <strong th:text="${cyclesToLost}">3</strong> ciclos consecutivos sin lectura
+                        (<code>missedCycles</code> en cada tag), salvo con ciclos pausados en demo.
+                    </p>
+                </div>
+                <div class="text-right text-label-md">
+                    <div id="wsStatus" class="inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-high px-sm py-0.5 text-on-surface-variant">
+                        <span class="h-2 w-2 rounded-full bg-secondary"></span> WebSocket…
+                    </div>
+                    <div id="statusLine" class="mt-xs text-on-surface-variant">Cargando…</div>
+                </div>
+            </div>
+
+            <div class="mt-lg grid gap-md sm:grid-cols-3">
+                <div class="rounded-lg border border-outline-variant bg-surface-container-low p-md text-center">
+                    <div class="text-label-md uppercase text-on-surface-variant">Disponibles</div>
+                    <div id="countVal" class="mt-xs font-headline-md text-headline-md text-primary">—</div>
+                </div>
+                <div class="rounded-lg border border-green-200 bg-green-50 p-md">
+                    <div class="text-label-md font-bold uppercase text-green-800">added</div>
+                    <div id="addedChips" class="mt-sm flex min-h-[2rem] flex-wrap gap-1 text-[11px]"></div>
+                </div>
+                <div class="rounded-lg border border-red-200 bg-red-50 p-md">
+                    <div class="text-label-md font-bold uppercase text-red-800">removed</div>
+                    <div id="removedChips" class="mt-sm flex min-h-[2rem] flex-wrap gap-1 text-[11px]"></div>
+                </div>
+            </div>
+
+            <div id="err" class="mt-md hidden rounded-lg border border-error bg-error-container px-md py-sm text-body-md text-on-error-container"></div>
+
+            <p class="mt-md text-[12px] text-on-surface-variant">
+                Distancia estimada por RSSI de la última lectura:
+                <span class="inline-flex rounded-full border border-green-300 bg-green-100 px-2 py-0.5 font-bold text-green-900">Cerca</span> ≥ −55 dBm ·
+                <span class="inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 font-bold text-amber-900">Media</span> −55 a −70 dBm ·
+                <span class="inline-flex rounded-full border border-orange-300 bg-orange-100 px-2 py-0.5 font-bold text-orange-900">Lejos</span> &lt; −70 dBm
+            </p>
+
+            <div class="mt-md overflow-x-auto rounded-lg border border-outline-variant">
+                <table class="w-full min-w-[720px] border-collapse text-left text-body-md">
+                    <thead>
+                    <tr class="border-b border-outline-variant bg-surface-container-low">
+                        <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">#</th>
+                        <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">ASCII</th>
+                        <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">EPC (hex)</th>
+                        <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">RSSI</th>
+                        <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">Distancia</th>
+                        <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">Sin leer</th>
+                        <th class="px-md py-sm font-label-md text-label-md uppercase text-on-surface-variant">Lector</th>
+                    </tr>
+                    </thead>
+                    <tbody id="epcRows" class="divide-y divide-outline-variant"></tbody>
+                </table>
+            </div>
+
+            <div class="mt-lg">
+                <h3 class="font-title-md text-title-md text-on-background">JSON (último evento / snapshot)</h3>
+                <pre id="jsonPanel" class="mt-sm max-h-[360px] overflow-auto rounded-lg border border-outline-variant bg-surface-container-high p-md text-[11px] leading-relaxed text-on-surface">{}</pre>
+            </div>
+        </div>
+    </div>
+</main>
+<script th:inline="javascript">
+(function () {
+    var systemId = /*[[${systemId}]]*/ '';
+    var apiSnapshot = '/api/inventory-systems/' + encodeURIComponent(systemId) + '/inventory-list-webhook';
+    var statusLine = document.getElementById('statusLine');
+    var errEl = document.getElementById('err');
+    var countVal = document.getElementById('countVal');
+    var addedChips = document.getElementById('addedChips');
+    var removedChips = document.getElementById('removedChips');
+    var epcRows = document.getElementById('epcRows');
+    var jsonPanel = document.getElementById('jsonPanel');
+    var wsStatus = document.getElementById('wsStatus');
+
+    var state = { epcs: [], tags: {}, added: [], removed: [], count: 0 };
+    var lastEnvelope = null;
+    var highlightEpc = {};
+
+    function proximityBadgeClass(proximity) {
+        switch (proximity) {
+            case 'CERCA': return 'border-green-300 bg-green-100 text-green-900';
+            case 'MEDIA': return 'border-amber-300 bg-amber-100 text-amber-900';
+            case 'LEJOS': return 'border-orange-300 bg-orange-100 text-orange-900';
+            default: return 'border-outline-variant bg-surface-container-high text-on-surface-variant';
+        }
+    }
+
+    function indexTags(tags) {
+        var map = {};
+        (tags || []).forEach(function (t) {
+            if (t && t.epc) map[String(t.epc).toUpperCase()] = t;
+        });
+        return map;
+    }
+
+    function formatRssi(rssi) {
+        if (rssi == null || isNaN(rssi)) return '—';
+        return Number(rssi).toFixed(1) + ' dBm';
+    }
+
+    function esc(s) {
+        if (s == null) return '';
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    /** Decodifica EPC hex → texto ASCII (p. ej. 42443030… → BD00…). */
+    function epcToAscii(hex) {
+        if (!hex) return '';
+        var s = String(hex).replace(/\s/g, '').toUpperCase();
+        if (!/^[0-9A-F]+$/.test(s) || s.length % 2 !== 0) return '';
+        var out = '';
+        for (var i = 0; i < s.length; i += 2) {
+            var code = parseInt(s.substring(i, i + 2), 16);
+            if (code === 0) continue;
+            out += (code >= 32 && code <= 126) ? String.fromCharCode(code) : '.';
+        }
+        return out;
+    }
+
+    function sortKey(epc) {
+        var ascii = epcToAscii(epc);
+        return (ascii || epc || '').toUpperCase();
+    }
+
+    function sortEpcs(epcs) {
+        return (epcs || []).slice().sort(function (a, b) {
+            return sortKey(a).localeCompare(sortKey(b), undefined, { sensitivity: 'base' });
+        });
+    }
+
+    function renderChips(el, items, colorClass) {
+        el.innerHTML = '';
+        if (!items || items.length === 0) {
+            el.innerHTML = '<span class="text-on-surface-variant">—</span>';
+            return;
+        }
+        sortEpcs(items).forEach(function (epc) {
+            var ascii = epcToAscii(epc);
+            var label = ascii ? ascii + ' · ' + epc : epc;
+            var span = document.createElement('span');
+            span.className = 'rounded bg-white/80 px-1 py-0.5 font-code-md ' + colorClass;
+            span.textContent = label;
+            span.title = epc;
+            el.appendChild(span);
+        });
+    }
+
+    function renderTable() {
+        epcRows.innerHTML = '';
+        state.epcs.forEach(function (epc, i) {
+            var ascii = epcToAscii(epc);
+            var tag = state.tags[epc] || state.tags[String(epc).toUpperCase()] || {};
+            var proxLabel = tag.proximityLabel || '—';
+            var prox = tag.proximity || '';
+            var badgeCls = proximityBadgeClass(prox);
+            var missed = tag.missedCycles != null ? tag.missedCycles : 0;
+            var cyclesMax = /*[[${cyclesToLost}]]*/ 3;
+            var missedLabel = missed > 0 ? missed + '/' + cyclesMax : '0/' + cyclesMax;
+            var missedCls = missed >= 2 ? 'text-orange-700 font-bold' : (missed === 1 ? 'text-amber-700' : 'text-on-surface-variant');
+            var reader = tag.readerId ? esc(tag.readerId) + (tag.antennaPort != null ? ' · ant ' + tag.antennaPort : '') : '—';
+            var tr = document.createElement('tr');
+            var hl = highlightEpc[epc] ? ' bg-green-100' : ' hover:bg-surface-container-low';
+            tr.className = hl;
+            tr.innerHTML =
+                '<td class="px-md py-sm text-on-surface-variant">' + (i + 1) + '</td>' +
+                '<td class="px-md py-sm font-title-md text-on-surface">' + esc(ascii || '—') + '</td>' +
+                '<td class="px-md py-sm"><code class="rounded bg-surface-container-high px-1 font-code-md text-[11px] text-primary">' + esc(epc) + '</code></td>' +
+                '<td class="px-md py-sm font-code-md text-[12px] text-on-surface">' + esc(formatRssi(tag.rssi)) + '</td>' +
+                '<td class="px-md py-sm"><span class="inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ' + badgeCls + '">' + esc(proxLabel) + '</span></td>' +
+                '<td class="px-md py-sm text-[12px] ' + missedCls + '" title="Ciclos sin lectura hasta removed (3)">' + esc(missedLabel) + '</td>' +
+                '<td class="px-md py-sm text-[12px] text-on-surface-variant">' + reader + '</td>';
+            epcRows.appendChild(tr);
+        });
+        if (state.epcs.length === 0) {
+            epcRows.innerHTML = '<tr><td colspan="7" class="px-md py-md text-center text-on-surface-variant">Sin EPC disponibles</td></tr>';
+        }
+    }
+
+    function applyData(data, envelope, updateDeltas) {
+        if (!data) return;
+        state.epcs = sortEpcs(data.epcs || []);
+        state.tags = indexTags(data.tags);
+        state.count = data.count != null ? data.count : state.epcs.length;
+        if (updateDeltas) {
+            state.added = sortEpcs(data.added || []);
+            state.removed = sortEpcs(data.removed || []);
+        }
+        countVal.textContent = state.count;
+        renderChips(addedChips, state.added, 'text-green-900');
+        renderChips(removedChips, state.removed, 'text-red-900');
+        renderTable();
+        updateDemoEpcList();
+        if (envelope) {
+            lastEnvelope = envelope;
+            jsonPanel.textContent = JSON.stringify(envelope, null, 2);
+        }
+        statusLine.textContent = 'Actualizado: ' + new Date().toLocaleTimeString();
+        errEl.classList.add('hidden');
+    }
+
+    function applyEnvelope(envelope) {
+        if (!envelope || envelope.type !== 'INVENTORY_LIST_UPDATE') return;
+        var data = envelope.data;
+        if (!data || data.systemId !== systemId) return;
+        applyData(data, envelope, true);
+    }
+
+    function updateDemoEpcList() {
+        var dl = document.getElementById('demoEpcList');
+        if (!dl) return;
+        dl.innerHTML = '';
+        state.epcs.forEach(function (epc) {
+            var opt = document.createElement('option');
+            opt.value = epc;
+            dl.appendChild(opt);
+        });
+    }
+
+    function pollSnapshot() {
+        fetch(apiSnapshot, { credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (envelope) {
+                var data = envelope.data;
+                applyData(data, envelope, false);
+            })
+            .catch(function (e) {
+                errEl.classList.remove('hidden');
+                errEl.textContent = 'Error al cargar inventario: ' + e.message;
+            });
+    }
+
+    function setWsConnected(ok) {
+        if (ok) {
+            wsStatus.innerHTML = '<span class="h-2 w-2 rounded-full bg-green-500"></span> WebSocket conectado';
+            wsStatus.className = 'inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-sm py-0.5 text-green-800';
+        } else {
+            wsStatus.innerHTML = '<span class="h-2 w-2 rounded-full bg-secondary"></span> WebSocket desconectado';
+            wsStatus.className = 'inline-flex items-center gap-1 rounded-full border border-outline-variant bg-surface-container-high px-sm py-0.5 text-on-surface-variant';
+        }
+    }
+
+    function connectWs() {
+        var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var ws = new WebSocket(proto + '//' + location.host + '/ws/events');
+        ws.onopen = function () { setWsConnected(true); };
+        ws.onclose = function () {
+            setWsConnected(false);
+            setTimeout(connectWs, 4000);
+        };
+        ws.onmessage = function (ev) {
+            try {
+                var msg = JSON.parse(ev.data);
+                if (msg.type === 'INVENTORY_LIST_UPDATE') {
+                    applyEnvelope(msg);
+                } else if (msg.type === 'INVENTORY_EPC_ADD' && msg.data && msg.data.systemId === systemId) {
+                    var epc = (msg.data.epc || '').toUpperCase();
+                    var prev = state.tags[epc] || {};
+                    state.tags[epc] = {
+                        epc: epc,
+                        rssi: msg.data.rssi,
+                        proximity: msg.data.proximity,
+                        proximityLabel: msg.data.proximityLabel,
+                        readerId: msg.data.readerId,
+                        antennaPort: msg.data.antennaPort,
+                        missedCycles: 0
+                    };
+                    highlightEpc[epc] = true;
+                    setTimeout(function () { delete highlightEpc[epc]; renderTable(); }, 3000);
+                    pollSnapshot();
+                } else if (msg.type === 'INVENTORY_EPC_REMOVE' && msg.data && msg.data.systemId === systemId) {
+                    pollSnapshot();
+                }
+            } catch (ignore) { /* */ }
+        };
+    }
+
+    pollSnapshot();
+    setInterval(pollSnapshot, 1500);
+    connectWs();
+})();
+</script>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>

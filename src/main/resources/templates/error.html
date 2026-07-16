@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light">
+<head th:replace="~{fragments/dh-head :: dhHead('Error')}"></head>
+<body class="min-h-screen bg-background text-on-background" data-dh-tutorial-page="error">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='home')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col items-center justify-center bg-background p-margin-desktop">
+    <div id="dh-tour-error-card" class="w-full max-w-lg rounded-xl border border-outline-variant bg-surface-container-lowest p-xl shadow-sm">
+        <div class="mb-lg flex justify-center">
+            <img th:replace="~{fragments/dh-logo :: dhLogoHero}"/>
+        </div>
+        <h1 class="text-center font-headline-md text-headline-md text-on-background">Error</h1>
+        <p class="mt-md font-bold text-primary" th:text="${status}">status</p>
+        <p class="mt-sm text-body-md text-on-surface" th:if="${error}" th:text="${error}">error</p>
+        <p class="mt-sm text-body-md text-on-surface" th:if="${message}" th:text="${message}">message</p>
+        <p class="mt-lg flex flex-wrap gap-md text-body-md">
+            <a th:href="@{/}" class="font-bold text-primary hover:underline">Inicio</a>
+            <a th:href="@{/api/status}" class="text-primary hover:underline" target="_blank" rel="noopener">API estado</a>
+            <a th:href="@{/api/health}" class="text-primary hover:underline" target="_blank" rel="noopener">API health</a>
+        </p>
+    </div>
+</main>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>

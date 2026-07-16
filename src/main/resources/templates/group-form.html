@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light"
+      th:with="pageTitle=${group.id != null} ? 'Editar grupo' : 'Nuevo grupo'">
+<head th:replace="~{fragments/dh-head :: dhHead(${pageTitle})}"></head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='groups')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar(${pageTitle})}"></header>
+    <div class="custom-scrollbar flex-1 overflow-y-auto p-margin-desktop max-w-max-width">
+        <div class="mx-auto max-w-xl rounded-xl border border-outline-variant bg-surface-container-lowest p-xl shadow-sm" id="dh-tour-group-form">
+            <p class="mb-lg font-code-md text-code-md text-on-surface-variant" th:if="${group.id != null}" th:text="'ID: ' + ${group.id}"></p>
+            <div th:if="${error}" class="mb-lg rounded-lg border border-error bg-error-container px-md py-sm text-body-md text-on-error-container" th:text="${error}"></div>
+
+            <form th:if="${group.id == null}" th:action="@{/groups}" method="post" class="space-y-lg">
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="id">ID del grupo *</label>
+                    <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="text" id="id" name="id" required placeholder="grupo-1"/>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="name">Nombre *</label>
+                    <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="text" id="name" name="name" required/>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="description">Descripción</label>
+                    <textarea class="mt-xs min-h-[100px] w-full resize-y rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" id="description" name="description" placeholder="Opcional"></textarea>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant">Lectores (Ctrl/Cmd + clic)</label>
+                    <select class="mt-xs min-h-[140px] w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" name="readerIds" multiple>
+                        <option th:each="r : ${readers}" th:value="${r.id}" th:text="${r.name + ' (' + r.id + ')'}"></option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-sm">
+                    <input class="h-4 w-4 rounded border-outline-variant text-primary" type="checkbox" name="enabled" value="true" id="en1" checked/>
+                    <label class="text-body-md text-on-surface" for="en1">Habilitado</label>
+                </div>
+                <div class="flex flex-wrap gap-sm pt-md">
+                    <button type="submit" class="rounded-lg bg-primary px-lg py-sm font-bold text-on-primary">Crear</button>
+                    <a th:href="@{/readers}" class="inline-flex items-center rounded-lg border border-outline-variant px-lg py-sm font-label-md text-on-surface hover:bg-surface-container-low">Cancelar</a>
+                </div>
+            </form>
+
+            <form th:if="${group.id != null}" th:action="@{/groups/{id}/edit(id=${group.id})}" method="post" class="space-y-lg">
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant">ID</label>
+                    <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-high px-md py-sm text-body-md" type="text" th:value="${group.id}" readonly/>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="name2">Nombre *</label>
+                    <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="text" id="name2" name="name" th:value="${group.name}" required/>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="description2">Descripción</label>
+                    <textarea class="mt-xs min-h-[100px] w-full resize-y rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" id="description2" name="description" th:text="${group.description}"></textarea>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant">Lectores</label>
+                    <select class="mt-xs min-h-[140px] w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" name="readerIds" multiple>
+                        <option th:each="r : ${readers}" th:value="${r.id}" th:text="${r.name + ' (' + r.id + ')'}"
+                                th:selected="${selectedReaderIds != null and selectedReaderIds.contains(r.id)}"></option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-sm">
+                    <input class="h-4 w-4 rounded border-outline-variant text-primary" type="checkbox" name="enabled" value="true" id="en2" th:checked="${group.enabled}"/>
+                    <label class="text-body-md text-on-surface" for="en2">Habilitado</label>
+                </div>
+                <div class="flex flex-wrap gap-sm pt-md">
+                    <button type="submit" class="rounded-lg bg-primary px-lg py-sm font-bold text-on-primary">Guardar</button>
+                    <a th:href="@{/readers}" class="inline-flex items-center rounded-lg border border-outline-variant px-lg py-sm font-label-md text-on-surface hover:bg-surface-container-low">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>

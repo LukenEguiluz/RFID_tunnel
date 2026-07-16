@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es" class="light">
+<head th:replace="~{fragments/dh-head :: dhHead('Editar lector')}"></head>
+<body class="min-h-screen bg-background text-on-background">
+<aside th:replace="~{fragments/dh-nav :: dhSidebar(activeNav='readers')}"></aside>
+<main class="ml-[260px] flex min-h-screen flex-col bg-background">
+    <header th:replace="~{fragments/dh-nav :: dhTopbar('Editar lector')}"></header>
+    <div class="custom-scrollbar flex-1 overflow-y-auto p-margin-desktop max-w-max-width">
+        <div class="mx-auto max-w-xl rounded-xl border border-outline-variant bg-surface-container-lowest p-xl shadow-sm">
+            <p class="mb-lg font-code-md text-code-md text-on-surface-variant" th:text="'ID: ' + ${reader.id}">ID</p>
+            <div th:if="${error}" class="mb-lg rounded-lg border border-error bg-error-container px-md py-sm text-body-md text-on-error-container" th:text="${error}"></div>
+            <form th:action="@{/readers/{id}/edit(id=${reader.id})}" th:object="${reader}" method="post" id="dh-tour-reader-form" class="space-y-lg">
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="id">ID</label>
+                    <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-high px-md py-sm text-body-md text-on-surface" type="text" id="id" th:field="*{id}" readonly/>
+                    <p class="mt-xs text-[12px] text-on-surface-variant">El ID no se puede cambiar.</p>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="name">Nombre *</label>
+                    <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="text" id="name" th:field="*{name}" required/>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="hostname">Hostname o IP *</label>
+                    <input class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" type="text" id="hostname" th:field="*{hostname}" required/>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="brand">Marca</label>
+                    <select class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" id="brand" th:field="*{brand}">
+                        <option th:each="b : ${T(com.rfidgateway.model.ReaderBrand).values()}" th:value="${b}" th:text="${b}"></option>
+                    </select>
+                    <p class="mt-xs text-[12px] text-on-surface-variant">Solo <strong class="text-on-surface">IMPINJ_OCTANE</strong> conecta vía Octane.</p>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="operationMode">Modo de operación</label>
+                    <select class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" id="operationMode" th:field="*{operationMode}">
+                        <option th:each="m : ${T(com.rfidgateway.model.ReaderOperationMode).values()}" th:value="${m}" th:text="${m}"></option>
+                    </select>
+                    <p class="mt-xs text-[12px] text-on-surface-variant">TUNNEL: lectura manual. CONTINUOUS: inventario continuo.</p>
+                </div>
+                <div>
+                    <label class="mb-xs block font-label-md text-label-md uppercase tracking-wide text-on-surface-variant" for="inventorySystemId">Sistema (CONTINUOUS)</label>
+                    <select class="mt-xs block w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/25" id="inventorySystemId" th:field="*{inventorySystemId}">
+                        <option value="">—</option>
+                        <option th:each="s : ${inventorySystems}" th:value="${s.id}" th:text="${s.name}"></option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-sm">
+                    <input class="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary/30" type="checkbox" th:field="*{enabled}" id="en"/>
+                    <label class="text-body-md text-on-surface" for="en">Habilitado</label>
+                </div>
+                <div class="flex flex-wrap gap-sm pt-md">
+                    <button type="submit" class="rounded-lg bg-primary px-lg py-sm font-bold text-on-primary hover:bg-primary-container">Guardar</button>
+                    <a th:href="@{/readers}" class="inline-flex items-center rounded-lg border border-outline-variant bg-surface-container-low px-lg py-sm font-label-md text-on-surface hover:bg-surface-container-high">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+<th:block th:replace="~{fragments/dh-tutorial-fab :: dhTutorialFab}"/>
+</body>
+</html>

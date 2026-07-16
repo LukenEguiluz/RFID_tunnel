@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<!-- Sidebar: chip blanco sobre fondo del nav -->
+<img th:fragment="dhLogoSidebar"
+     th:src="@{/images/dohealth-logo.png}"
+     alt="doHealth"
+     width="300"
+     height="188"
+     loading="eager"
+     decoding="async"
+     class="block h-12 w-auto max-w-[220px] rounded-xl bg-white p-2 object-contain object-left shadow-sm ring-1 ring-black/10"/>
+
+<!-- Barra superior -->
+<img th:fragment="dhLogoTopbar"
+     th:src="@{/images/dohealth-logo.png}"
+     alt="doHealth"
+     width="300"
+     height="188"
+     loading="lazy"
+     decoding="async"
+     class="block max-h-9 w-auto max-w-[150px] shrink-0 rounded-lg bg-white p-1.5 object-contain object-left shadow-sm ring-1 ring-black/10"/>
+
+<!-- Pie sidebar -->
+<img th:fragment="dhLogoSmall"
+     th:src="@{/images/dohealth-logo.png}"
+     alt=""
+     width="300"
+     height="188"
+     role="presentation"
+     loading="lazy"
+     decoding="async"
+     class="h-10 w-auto max-w-[56px] shrink-0 rounded-lg bg-white p-1 object-contain object-left shadow-sm ring-1 ring-black/10"/>
+
+<!-- Error / hero centrado -->
+<img th:fragment="dhLogoHero"
+     th:src="@{/images/dohealth-logo.png}"
+     alt="doHealth"
+     width="300"
+     height="188"
+     loading="eager"
+     decoding="async"
+     class="mx-auto block max-h-28 w-auto max-w-[min(100%,280px)] rounded-xl bg-white px-4 py-3 object-contain shadow-sm ring-1 ring-black/10 sm:max-h-32"/>
+
+<!-- Inicio: banda -->
+<img th:fragment="dhLogoDashboard"
+     th:src="@{/images/dohealth-logo.png}"
+     alt="doHealth"
+     width="300"
+     height="188"
+     loading="eager"
+     decoding="async"
+     class="block max-h-24 w-auto max-w-[260px] shrink-0 rounded-xl bg-white px-3 py-2 object-contain object-left shadow-sm ring-1 ring-black/10 sm:max-h-28"/>
+</html>
